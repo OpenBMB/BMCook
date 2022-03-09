@@ -1,0 +1,12 @@
+bmpretrain.egg-info/*
+build/*
+*.pyc
+*.bin
+*.so
+*.log
+*.idx
+
+slurm*.out
+example/results
+results
+*.idx
