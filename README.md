@@ -119,9 +119,9 @@ BMCook是一个基于[BMTrain](https://github.com/OpenBMB/BMTrain)开发的模�
 
 |                 | Model Quantization | Model Pruning | Knowledge Distillation | Model MoEfication |
 |-----------------|--------------------|---------------|------------------------|-------------------|
-| [TextPruner](https://github.com/airaria/TextPruner)      |                    | ✅             |                        |                   |
-| [TensorFlow Lite](https://www.tensorflow.org/lite) | ✅                  | ✅             |                        |                   |
-| [PyTorch](https://pytorch.org/)         | ✅                  | ✅             |                        |                   |
-| [TextBrewer](https://github.com/airaria/TextBrewer)      |                    | ✅             | ✅                      |                   |
+| [TextPruner](https://github.com/airaria/TextPruner)      |       -             | ✅             |          -              |      -             |
+| [TensorFlow Lite](https://www.tensorflow.org/lite) | ✅                  | ✅             |          -              |           -        |
+| [PyTorch](https://pytorch.org/)         | ✅                  | ✅             |            -            |          -         |
+| [TextBrewer](https://github.com/airaria/TextBrewer)      |           -         | ✅             | ✅                      |         -          |
 | BMCook          | ✅                  | ✅             | ✅                      | ✅                 |
 
