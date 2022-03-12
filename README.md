@@ -115,3 +115,13 @@ BMCook是一个基于[BMTrain](https://github.com/OpenBMB/BMTrain)开发的模�
     BMMoE.moefy(model, args.num_expert, args.topk, checkpoint=args.moe_path)
 ```
 
+## 功能对比
+
+|                 | Model Quantization | Model Pruning | Knowledge Distillation | Model MoEfication |
+|-----------------|--------------------|---------------|------------------------|-------------------|
+| [TextPruner](https://github.com/airaria/TextPruner)      |                    | ✅             |                        |                   |
+| [TensorFlow Lite](https://www.tensorflow.org/lite) | ✅                  | ✅             |                        |                   |
+| [PyTorch](https://pytorch.org/)         | ✅                  | ✅             |                        |                   |
+| [TextBrewer](https://github.com/airaria/TextBrewer)      |                    | ✅             | ✅                      |                   |
+| BMCook          | ✅                  | ✅             | ✅                      | ✅                 |
+
