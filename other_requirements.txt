@@ -1,4 +1,0 @@
-tqdm
-tensorboard
-PyYAML
-cpm_kernels>=1.0.9

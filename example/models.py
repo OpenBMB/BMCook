@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-import bmpretrain as bmp
+import bmtrain as bmp
 from typing import List
 
 import layers

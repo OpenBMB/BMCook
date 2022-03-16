@@ -5,7 +5,7 @@ import random
 import time
 
 import torch
-import bmpretrain as bmp
+import bmtrain as bmp
 
 from distilling import BMDistill
 from arguments import parse_args

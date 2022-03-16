@@ -1,4 +1,4 @@
-import bmpretrain as bmp
+import bmtrain as bmp
 
 def main():
     bmp.init_distributed()

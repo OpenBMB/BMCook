@@ -1,4 +1,3 @@
-bmpretrain.egg-info/*
 build/*
 *.pyc
 *.bin

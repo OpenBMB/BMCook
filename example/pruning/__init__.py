@@ -1,8 +1,8 @@
 from collections import defaultdict
 import types
 import torch
-import bmpretrain as bmp
-from bmpretrain.block_layer import storage_type_cuda, round_up
+import bmtrain as bmp
+from bmtrain.block_layer import storage_type_cuda, round_up
 from .prune_func import m4n2_2d_greedy, m4n2_2d_best
 import os
 

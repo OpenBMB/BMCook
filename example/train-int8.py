@@ -1,6 +1,6 @@
 import torch
 import random
-import bmpretrain as bmp
+import bmtrain as bmp
 import layers
 from tqdm import tqdm
 import time

@@ -1,6 +1,6 @@
 import torch
 from torch import nn
-import bmpretrain as bmp
+import bmtrain as bmp
 import torch.nn.functional as F
 import cpm_kernels.torch as ct
 

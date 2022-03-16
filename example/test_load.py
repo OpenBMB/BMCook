@@ -1,6 +1,6 @@
 import torch
-import bmpretrain as bmp
-from bmpretrain.checkpointing import checkpoint
+import bmtrain as bmp
+from bmtrain.checkpointing import checkpoint
 import layers
 from tqdm import tqdm
 
