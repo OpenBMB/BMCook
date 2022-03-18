@@ -28,10 +28,19 @@ class HiddenMap(bmp.DistributedModule):
 
 
 class BMDistill:
+    '''
+    BMDistill provide additional training objectives for knowledge distillation, which further improves the performance of compressed models.
+    '''
+
     @classmethod
     def init_student(cls, student, teacher_sd):
         '''
-        For GPT, copy every 2 layer from teacher to student.
+
+        Initialize the student model based on the parameters of the teacher model, i.e, copy every 2 layer from teacher to student.
+
+        :param student: Student model.
+        :param teacher_sd: State dictionary of the teacher model.
+
         '''
         # teacher_sd = teacher.state_dict()
         student_sd = {}
@@ -58,17 +67,25 @@ class BMDistill:
                     mse_att=False,
                     mse_emb=False):
         '''
-        `student` and `teacher` should return (logits, hidden_states, att_scores).
+        Modify the forward function of the student model to compute additional knowledge distillation loss.
 
+        `student` and `teacher` should return (logits, hidden_states, att_scores).
         logits: (batch_size, vocab_size)
         hidden_states: (batch_size, dec_len, hidden_size)
         att_scores: (batch_size, dec_len, enc_len)
 
-        Return:
-            1. (model, dec_input, dec_length, targets) -> loss, logits, kd_loss
-            2. (model, dec_input, dec_length, targets) -> loss, logits
-
-        Returns 1 if `output_kd_loss` is True, else return 2.
+        :param student: Student model.
+        :param teacher: Teacher model.
+        :param foward_fn: Forward function of the student model.
+        :param temp: Temperature for knowledge distillation.
+        :param kd_loss_scale: Scale of the knowledge distillation loss.
+        :param output_kd_loss: Whether to output the knowledge distillation loss.
+        :param ce_logits: Whether to use cross entropy loss for the output logits.
+        :param mse_last_hidden: Whether to use MSE loss for the last hidden state.
+        :param mse_hidden_states: Whether to use MSE loss for the hidden states.
+        :param mse_att: Whether to use MSE loss for the attention matrices.
+        :param mse_emb: Whether to use MSE loss for the embedding matrices.
+        :return: Modified forward function, whose return values are 1. (model, dec_input, dec_length, targets) -> loss, logits, kd_loss 2. (model, dec_input, dec_length, targets) -> loss, logits. Returns 1 if `output_kd_loss` is True, else return 2.
         '''
 
         cls.int8 = int8

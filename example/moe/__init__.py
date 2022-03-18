@@ -6,9 +6,21 @@ import types
 import os
 
 class BMMoE:
+    '''
+    BMMoE replaces the feed-forward modules in PLMs with MoE modules.
+    '''
 
     @staticmethod
     def moefy(model, num_expert, topk, checkpoint=None):
+        '''
+        Replace the feed-forward modules in PLMs with MoE modules according to the results of MoEfication from the checkpoint file.
+
+        :param model: Model to MoEfy.
+        :param num_expert: Number of experts.
+        :param topk: Top-k for each expert.
+        :param checkpoint: Path to load the MoEfication results.
+        :return: MoEfied model.
+        '''
         # after parameter initialization
 
         for i, layer in enumerate(model.dec_layers):

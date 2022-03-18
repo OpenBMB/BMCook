@@ -52,6 +52,12 @@ def mask_storage(ordered_masks, storage_params, storage_info):
 
 
 class BMPrune:
+    '''
+    BMPrune prunes unimportant weights in PLMs.
+
+    It consist of two steps: (1) Compute the pruning mask for each weight matrix. (2) Modify the optimizer to avoid the update of the pruned weights.
+    '''
+
     _model = None
     _masks = None
     _optimizer = None
@@ -60,6 +66,13 @@ class BMPrune:
 
     @classmethod
     def compute_mask(cls, model, func, checkpoint=None):
+        '''
+        Compute the pruning mask for each weight matrix and combine masks to match the parameters stored in the optimizer.
+        
+        :param model: Model to prune.
+        :param func: Function for computing the pruning mask.
+        :param checkpoint: Path to save/load the pruning mask.
+        '''
         assert (cls._model is None), "BMPrune.compute_mask() can only be called once."
         cls._model = model
 
@@ -99,6 +112,13 @@ class BMPrune:
 
     @classmethod
     def set_optim_for_pruning(cls, optimizer):
+        '''
+        Modify the step function of the optimizer to avoid the update of the pruned weights, i.e., setting corresponding gradients and parameters to zeros.
+
+        :param optimizer: Optimizer to modify.
+        :return: Modified optimizer.
+        '''
+
         assert (cls._optimizer is None), "BMPrune.set_optim_for_pruning() can only be called once."
 
         cls._optimizer = optimizer
