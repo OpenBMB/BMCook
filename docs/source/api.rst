@@ -4,13 +4,13 @@ API
 BMPrune
 --------
 
-.. autoclass:: BMPrune
+.. autoclass:: pruning.BMPrune
    :members:
 
 BMDistill
 --------
 
-.. autoclass:: BMDistill
+.. autoclass:: distilling.BMDistill
    :members:
 
 BMMoE

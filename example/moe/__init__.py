@@ -1,4 +1,3 @@
-import sklearn
 import numpy as np
 import torch
 import cpm_kernels.torch as ct
