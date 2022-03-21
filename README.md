@@ -1,5 +1,10 @@
 # BMCook
 
+<a href='https://bmcook.readthedocs.io/en/main/index.html'>
+    <img src='https://readthedocs.org/projects/bmcook/badge/?version=main' alt='Documentation Status' />
+</a>
+
+
 BMCook is a model compression toolkit for large-scale pre-trained language models (PLMs), which integrates multiple model compression methods. You can combine them in any way to achieve the desired speedup.
 
 ## Examples
