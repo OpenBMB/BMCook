@@ -1,4 +1,4 @@
-# BMCook
+# 🍳 BMCook
 
 <a href='https://bmcook.readthedocs.io/en/main/index.html'>
     <img src='https://readthedocs.org/projects/bmcook/badge/?version=main' alt='Documentation Status' />
