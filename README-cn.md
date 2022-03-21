@@ -1,12 +1,12 @@
 # BMCook
 
-BMCook is a model compression toolkit for large-scale pre-trained language models (PLMs), which integrates multiple model compression methods. You can combine them in any way to achieve the desired speedup.
+BMCook是一个基于[BMTrain](https://github.com/OpenBMB/BMTrain)开发的模型加速工具包，支持多种模型加速方法，包括模型量化、模型蒸馏、模型剪枝和模型专家化。
 
-## Examples
+## 使用样例
 
-The `example` folder provides example codes based on GPT-J (6B).
+`example`文件夹提供了基于GPT-J（6B参数）的样例代码。
 
-Quantization-aware training：
+模型量化：
 
 ```
     torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
@@ -16,7 +16,7 @@ Quantization-aware training：
      --load gpt-j.bin
 ```
 
-Quantization-aware training with knowledge distillation：
+在训练过程中加入模型蒸馏：
 ```
     torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
      --save-dir results/gpt-j-int8-distill \
@@ -29,7 +29,7 @@ Quantization-aware training with knowledge distillation：
      --load-teacher gpt-j.bin
 ```
 
-Model pruning：
+模型剪枝：
 ```
     torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
      --save-dir results/gpt-j-prune \
@@ -43,7 +43,7 @@ Model pruning：
      --load-teacher gpt-j.bin
 ```
 
-Transform the activation function from GeLU to ReLU：
+为了模型专家化，需要把模型激活函数进行一个转换适配：
 ```
     torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
      --save-dir results/gpt-j-relu \
@@ -56,7 +56,7 @@ Transform the activation function from GeLU to ReLU：
      --load-teacher gpt-j.bin
 ```
 
-MoEfication (save the hidden states and then use the MoEfication toolkit)：
+模型专家化（不需要训练，只需保存中间计算结果）：
 ```
     torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
      --save-dir results/gpt-j-moe \
@@ -66,7 +66,7 @@ MoEfication (save the hidden states and then use the MoEfication toolkit)：
      --save-hidden
 ```
 
-Combine quantization, pruning and knowledge distillation：
+与此同时，不同的压缩方法可以任意组合，以下是量化、剪枝和蒸馏结合的样例代码：
 ```
     torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
      --save-dir results/gpt-j-int8-prune-distill \
@@ -80,14 +80,14 @@ Combine quantization, pruning and knowledge distillation：
      --load-teacher gpt-j.bin
 ```
 
-## Implementation
+## 代码实现
 
-Quantization：
+模型量化，调整bmm中的int8开关即可开启模型量化训练：
 ```
     ct.bmm(w_0.unsqueeze(0), False, x, False, int8=int8)
 ```
 
-Distillation：
+模型蒸馏，通过修改forward函数加入蒸馏的loss：
 ```
     Trainer.forward = BMDistill.set_forward(
         model,
@@ -104,18 +104,18 @@ Distillation：
     )
 ```
 
-Pruning：
+模型剪枝，首先计算可以丢弃的参数，然后修改优化器：
 ```
     BMPrune.compute_mask(model, m4n2_2d_greedy, checkpoint=args.pruning_mask_path)
     BMPrune.set_optim_for_pruning(optimizer)
 ```
 
-MoEfication：
+模型专家化，修改模型中FFN的计算过程：
 ```
     BMMoE.moefy(model, args.num_expert, args.topk, checkpoint=args.moe_path)
 ```
 
-## Comparisons
+## 功能对比
 
 |                 | Model Quantization | Model Pruning | Knowledge Distillation | Model MoEfication |
 |-----------------|--------------------|---------------|------------------------|-------------------|
