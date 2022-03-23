@@ -16,5 +16,6 @@ Contents
 .. toctree::
 
    introduction
+   installation.md
    get_started
    api

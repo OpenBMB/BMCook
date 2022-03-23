@@ -1,24 +1,6 @@
 Get Started
 =====
 
-.. _installation:
-
-Installation
-------------
-
-To use BMCook, first install BMTrain using pip:
-
-.. code-block:: console
-
-   $ pip install bmtrain
-
-Then, clone the repository from our github page (don’t forget to star us!)
-
-.. code-block:: console
-
-   $ git clone git@github.com:OpenBMB/BMCook.git
-
-
 .. _examples:
 
 Examples
