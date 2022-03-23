@@ -2,13 +2,13 @@
 
 To use BMCook, first install BMTrain.
 
-### From PyPI (Recommend)
+**From PyPI (Recommend)**
 
 ```shell
 $ pip install bmtrain
 ```
 
-### From Source
+**From Source**
 
 ```shell
 $ git clone https://github.com/OpenBMB/BMTrain.git

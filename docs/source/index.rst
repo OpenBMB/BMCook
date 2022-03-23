@@ -18,6 +18,8 @@ Contents
 
    introduction
    installation.md
+   examples
+   about.md
    
 .. toctree::
    :maxdepth: 2
