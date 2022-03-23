@@ -11,6 +11,10 @@
     <img src='https://readthedocs.org/projects/bmcook/badge/?version=main' alt='Documentation Status' />
 </a>
 
+<a href="https://github.com/OpenBMB/BMCook/blob/main/LICENSE">
+    <img alt="GitHub" src="https://img.shields.io/github/license/OpenBMB/BMCook">
+</a>
+    
 </p>    
 
 </div>
