@@ -164,7 +164,7 @@ def main():
 
     model = get_model(args.model, args.init_std)
     bmp.init_parameters(model)
-
+    
     if args.load:
         bmp.load(model, args.load)
 
@@ -195,8 +195,6 @@ def main():
         )
         bmp.init_parameters(teacher)
         bmp.load(teacher, args.load_teacher)
-        if args.init_with_teacher:
-            BMDistill.init_student(model, teacher.state_dict())
 
         Trainer.forward = BMDistill.set_forward(
             model,
@@ -322,6 +320,7 @@ def main():
             # bmp.print_rank(bmp.inspect.format_summary(inspector.get_summary()))
             
             if args.eval:
+
                 eval_losses.append(global_loss)
                 if iteration == 20099:
                     bmp.print_rank(f"Average Loss: {np.mean(eval_losses):.4f}")
