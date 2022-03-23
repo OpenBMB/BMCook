@@ -14,8 +14,12 @@ Contents
 --------
 
 .. toctree::
+   :maxdepth: 2
 
    introduction
    installation.md
-   get_started
+   
+.. toctree::
+   :maxdepth: 2
+
    api

@@ -1,10 +1,5 @@
-Get Started
-=====
-
-.. _examples:
-
 Examples
-------------
+=====
 
 In the `example` folder, we provide the example codes based on GPT-J (6B).
 
