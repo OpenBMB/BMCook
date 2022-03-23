@@ -21,5 +21,6 @@ Contents
    
 .. toctree::
    :maxdepth: 2
+   :caption: API References
 
    api
