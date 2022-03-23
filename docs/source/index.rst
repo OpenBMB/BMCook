@@ -15,5 +15,6 @@ Contents
 
 .. toctree::
 
+   introduction
    get_started
    api
