@@ -22,6 +22,33 @@
 
 BMCook is a model compression toolkit for large-scale pre-trained language models (PLMs), which integrates multiple model compression methods. You can combine them in any way to achieve the desired speedup.
 
+## Installation
+
+To use BMCook, first install BMTrain.
+
+**From PyPI (Recommend)**
+
+```shell
+$ pip install bmtrain
+```
+
+**From Source**
+
+```shell
+$ git clone https://github.com/OpenBMB/BMTrain.git
+$ cd BMTrain
+$ python3 setup.py install
+```
+
+Please refer to [the installation guide](https://bmtrain.readthedocs.io/en/latest/) of BMTrain for more details.
+
+Then, clone the repository.
+
+
+```shell
+$ git clone git@github.com:OpenBMB/BMCook.git
+```
+
 ## Examples
 
 The `example` folder provides example codes based on GPT-J (6B).
