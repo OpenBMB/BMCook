@@ -18,3 +18,9 @@ BMMoE
 
 .. autoclass:: moe.BMMoE
    :members:
+
+BMQuant
+--------
+
+.. autoclass:: quant.BMQuant
+   :members:

@@ -104,7 +104,7 @@ Combine quantization, pruning and knowledge distillation：
 
 Quantization：
 ```
-    ct.bmm(w_0.unsqueeze(0), False, x, False, int8=int8)
+    BMQuant.quantize(model)
 ```
 
 Distillation：
