@@ -1,6 +1,6 @@
 # Introduction
 
-BMCook (https://github.com/OpenBMB/BMCook) is a model compression toolkit for large-scale pre-trained language models (PLMs), which integrates multiple model compression methods. You can combine them in any way to achieve the desired speedup. Specifically, we implement the following four model compression methods:
+[BMCook](https://github.com/OpenBMB/BMCook) is a model compression toolkit for large-scale pre-trained language models (PLMs), which integrates multiple model compression methods. You can combine them in any way to achieve the desired speedup. Specifically, we implement the following four model compression methods:
 
 ## Model Quantization 
 

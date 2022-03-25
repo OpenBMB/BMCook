@@ -18,7 +18,7 @@ Contents
 
    introduction.md
    installation.md
-   examples
+   examples.md
    about.md
    
 .. toctree::
