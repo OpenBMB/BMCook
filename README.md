@@ -7,7 +7,7 @@
 
 <p align="center">
     
-<a href='https://bmcook.readthedocs.io/en/main/index.html'>
+<a href='https://bmcook.readthedocs.io/en/main/'>
     <img src='https://readthedocs.org/projects/bmcook/badge/?version=main' alt='Documentation Status' />
 </a>
 
