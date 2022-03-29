@@ -27,7 +27,7 @@
 
 ## What's New
 
-- 2022/3/20 Now we publicly release BMCook 0.1.0 for more efficient big models.
+- 2022/3/29 Now we publicly release BMCook 0.1.0 for more efficient big models.
 
 <div id="overview"></div>
 
