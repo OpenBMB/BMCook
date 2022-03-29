@@ -3,24 +3,48 @@
 
 <h1>🍳 BMCook</h1>
 
-------
-
-<p align="center">
+**Model Compression for Big Models**
     
-<a href='https://bmcook.readthedocs.io/en/main/'>
-    <img src='https://readthedocs.org/projects/bmcook/badge/?version=main' alt='Documentation Status' />
-</a>
-
-<a href="https://github.com/OpenBMB/BMCook/blob/main/LICENSE">
-    <img alt="GitHub" src="https://img.shields.io/github/license/OpenBMB/BMCook">
-</a>
-    
-</p>    
-
 </div>
 
 
-BMCook is a model compression toolkit for large-scale pre-trained language models (PLMs), which integrates multiple model compression methods. You can combine them in any way to achieve the desired speedup.
+<p align="center">
+  <a href="#overview">Overview</a> • <a href="#documentation">Documentation</a> • <a href="#install">Installation</a> • <a href="#quick-start">Quick Start</a> • <a href="./README-ZH.md" target="_blank">简体中文</a>
+<br>
+</p>
+
+<p align="center">
+	<a href='https://bmcook.readthedocs.io/en/main/'>
+	    <img src='https://readthedocs.org/projects/bmcook/badge/?version=main' alt='doc' />
+	</a>
+	<a href="https://github.com/OpenBMB/BMCook/blob/main/LICENSE">
+	    <img alt="github" src="https://img.shields.io/github/license/OpenBMB/BMCook">
+	</a>
+	<a>
+		 <img alt="version" src="https://img.shields.io/badge/version-0.1.0-blue">
+	</a>
+</p>    
+
+## What's New
+
+- 2022/3/20 Now we publicly release BMCook 0.1.0 for more efficient big models.
+
+<div id="overview"></div>
+
+## Overview
+
+BMCook is a model compression toolkit for large-scale pre-trained language models (PLMs), which integrates multiple model compression methods. You can combine them in any way to achieve the desired speedup. Specifically, we implement the following four model compression methods, knowledge distillation, model pruning, model quantization, and model MoEfication. It has following features:
+
+- **Various Supported Methods.** Compared to existing compression toolkits, BMCook supports all mainstream acceleration methods for pre-trained language models.
+- **User Friendly.** Based on BMCook, we can implement different compression methods with just a few lines of codes.
+- **Combination in Any Way.** Due to  the decoupled implications, the compression methods can be combined in any way towards extreme acceleration.
+
+<div id="documentation"></div>
+
+## Documentation
+Our [documentation](https://bmcook.readthedocs.io/en/main/) provides more information about the package.
+
+<div id="install"></div>
 
 ## Installation
 
@@ -49,7 +73,9 @@ Then, clone the repository.
 $ git clone git@github.com:OpenBMB/BMCook.git
 ```
 
-## Examples
+<div id="quick-start"></div>
+
+## Quick Start
 
 The `example` folder provides example codes based on GPT-J (6B).
 
@@ -127,40 +153,19 @@ Combine quantization, pruning and knowledge distillation：
      --load-teacher gpt-j.bin
 ```
 
-## Implementation
 
-Quantization：
-```
-    BMQuant.quantize(model)
-```
+## Community
+We welcome everyone to contribute codes following our [contributing guidelines](https://github.com/OpenBMB/BMCook/blob/main/CONTRIBUTING.md).
 
-Distillation：
-```
-    Trainer.forward = BMDistill.set_forward(
-        model,
-        teacher,
-        Trainer.forward,
-        output_kd_loss=True,
-        temp=args.kd_temp,
-        kd_loss_scale=args.kd_loss_scale,
-        ce_logits=args.kd_ce_logits,
-        mse_last_hidden=args.kd_mse_last_hidden,
-        mse_hidden_states=args.kd_mse_hidn,
-        mse_att=args.kd_mse_att,
-        mse_emb=args.kd_mse_emb,
-    )
-```
+You can also find us on other platforms:
+- QQ Group: 735930538
+- Website: http://www.openbmb.org
+- Weibo: http://weibo.cn/OpenBMB
+- Twitter: https://twitter.com/OpenBMB
 
-Pruning：
-```
-    BMPrune.compute_mask(model, m4n2_2d_greedy, checkpoint=args.pruning_mask_path)
-    BMPrune.set_optim_for_pruning(optimizer)
-```
+## License
 
-MoEfication：
-```
-    BMMoE.moefy(model, args.num_expert, args.topk, checkpoint=args.moe_path)
-```
+The package is released under the [Apache 2.0](https://github.com/OpenBMB/BMInf/blob/master/LICENSE) License.
 
 ## Comparisons
 
