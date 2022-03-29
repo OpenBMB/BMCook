@@ -165,7 +165,7 @@ You can also find us on other platforms:
 
 ## License
 
-The package is released under the [Apache 2.0](https://github.com/OpenBMB/BMInf/blob/master/LICENSE) License.
+The package is released under the [Apache 2.0](https://github.com/OpenBMB/BMCook/blob/main/LICENSE) License.
 
 ## Comparisons
 
