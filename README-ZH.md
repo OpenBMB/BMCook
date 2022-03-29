@@ -1,8 +1,77 @@
-# BMCook
+<div align="center">
 
-BMCook是一个基于[BMTrain](https://github.com/OpenBMB/BMTrain)开发的模型加速工具包，支持多种模型加速方法，包括模型量化、模型蒸馏、模型剪枝和模型专家化。
+<h1>♾ BMInf</h1>
 
-## 使用样例
+**大模型压缩工具包**
+
+</div>
+
+<p align="center">
+  <a href="#overview">总览</a> • <a href="#documentation">文档</a> • <a href="#install">安装</a> • <a href="#quick-start">快速上手</a> • <a href="./README.md" target="_blank">English</a>
+<br>
+</p>
+
+<p align="center">
+	<a href='https://bmcook.readthedocs.io/en/main/'>
+	    <img src='https://readthedocs.org/projects/bmcook/badge/?version=main' alt='doc' />
+	</a>
+	<a href="https://github.com/OpenBMB/BMCook/blob/main/LICENSE">
+	    <img alt="github" src="https://img.shields.io/github/license/OpenBMB/BMCook">
+	</a>
+	<a>
+		 <img alt="version" src="https://img.shields.io/badge/version-0.1.0-blue">
+	</a>
+</p>   
+
+## 最新动态
+
+- 2022/3/20 BMCook正式发布了！
+
+<div id="overview"></div>
+## 总览
+
+BMCook是一个用于大规模预训练语言模型（PLM）的模型压缩工具包，它集成了多种模型压缩方法。你可以以任何方式组合它们，以满足特定的计算需求。具体来说，本工具包实现了以下四种模型压缩方法：知识蒸馏、模型剪枝、模型量化和模型专家化。
+
+- **支持多种方法** 与现有的压缩工具包相比，BMCook支持所有主流的预训练语言模型加速方法。
+- **用户友好** 基于BMCook，用户只需几行代码就可以实现不同的压缩方法。
+- **任意组合** 受益于解耦合的实现方式，不同方法可以任意组合以追求极致压缩。
+
+<div id="documentation"></div>
+
+## 文档
+我们的[文档](https://bmcook.readthedocs.io/en/main/)提供了关于该工具包的更多信息。
+
+<div id="install"></div>
+
+## 安装
+
+BMCook基于BMTrain进行开发，使用前需先安装BMTrain
+
+**从PyPI安装（推荐）**
+
+```shell
+$ pip install bmtrain
+```
+
+**从源代码安装**
+
+```shell
+$ git clone https://github.com/OpenBMB/BMTrain.git
+$ cd BMTrain
+$ python3 setup.py install
+```
+
+更多细节请请参考[BMTrain](https://bmtrain.readthedocs.io/en/latest/)的安装指南。
+
+安装完BMTrain后，再拉取本仓库。
+
+```shell
+$ git clone git@github.com:OpenBMB/BMCook.git
+```
+
+<div id="quick-start"></div>
+
+## 快速上手
 
 `example`文件夹提供了基于GPT-J（6B参数）的样例代码。
 
@@ -80,40 +149,19 @@ BMCook是一个基于[BMTrain](https://github.com/OpenBMB/BMTrain)开发的模�
      --load-teacher gpt-j.bin
 ```
 
-## 代码实现
+## 开源社区
 
-模型量化，调整bmm中的int8开关即可开启模型量化训练：
-```
-    ct.bmm(w_0.unsqueeze(0), False, x, False, int8=int8)
-```
+欢迎贡献者参照我们的[贡献指南](https://github.com/OpenBMB/BMCook/blob/main/CONTRIBUTING.md)贡献相关代码。
 
-模型蒸馏，通过修改forward函数加入蒸馏的loss：
-```
-    Trainer.forward = BMDistill.set_forward(
-        model,
-        teacher,
-        Trainer.forward,
-        output_kd_loss=True,
-        temp=args.kd_temp,
-        kd_loss_scale=args.kd_loss_scale,
-        ce_logits=args.kd_ce_logits,
-        mse_last_hidden=args.kd_mse_last_hidden,
-        mse_hidden_states=args.kd_mse_hidn,
-        mse_att=args.kd_mse_att,
-        mse_emb=args.kd_mse_emb,
-    )
-```
+您也可以在其他平台与我们沟通交流:
+- QQ群: 735930538
+- 官方网站: http://www.openbmb.org
+- 微博: http://weibo.cn/OpenBMB
+- Twitter: https://twitter.com/OpenBMB
 
-模型剪枝，首先计算可以丢弃的参数，然后修改优化器：
-```
-    BMPrune.compute_mask(model, m4n2_2d_greedy, checkpoint=args.pruning_mask_path)
-    BMPrune.set_optim_for_pruning(optimizer)
-```
+## 开源许可
 
-模型专家化，修改模型中FFN的计算过程：
-```
-    BMMoE.moefy(model, args.num_expert, args.topk, checkpoint=args.moe_path)
-```
+该工具包使用[Apache 2.0](https://github.com/OpenBMB/BMCook/blob/main/LICENSE)开源许可证。
 
 ## 功能对比
 
