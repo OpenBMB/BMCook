@@ -113,19 +113,6 @@ $ git clone git@github.com:OpenBMB/BMCook.git
      --load-teacher gpt-j.bin
 ```
 
-为了模型专家化，需要把模型激活函数进行一个转换适配：
-```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-relu \
-     --model gpt-j-full-relu \
-     --start-lr 1e-4 \
-     --load gpt-j.bin \
-     --use-kd \
-     --kd-mse-last-hidden \
-     --kd-loss-scale 1 \
-     --load-teacher gpt-j.bin
-```
-
 模型专家化（不需要训练，只需保存中间计算结果）：
 ```
     torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
