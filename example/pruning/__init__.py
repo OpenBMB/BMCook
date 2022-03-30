@@ -27,6 +27,8 @@ def mask_storage(ordered_masks, storage_params, storage_info):
 
     for _, mask in ordered_masks:
         storage_type = storage_type_cuda(mask.storage_type())
+        if storage_type == torch.cuda.HalfStorage:
+            storage_type = 'float16_grad'
         param_shape = mask.size()
         param_st = offsets[storage_type]
         offsets[storage_type] += param_shape.numel()

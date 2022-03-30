@@ -164,7 +164,7 @@ def main():
 
     model = get_model(args.model, args.init_std)
     bmp.init_parameters(model)
-
+    
     if args.load:
         bmp.load(model, args.load)
 
@@ -195,8 +195,6 @@ def main():
         )
         bmp.init_parameters(teacher)
         bmp.load(teacher, args.load_teacher)
-        if args.init_with_teacher:
-            BMDistill.init_student(model, teacher.state_dict())
 
         Trainer.forward = BMDistill.set_forward(
             model,
@@ -218,8 +216,12 @@ def main():
     bmp.synchronize()
 
     # data
-    batch_size = 8
-    dec_len = 512
+    if args.eval:
+        batch_size = 1
+        dec_len = 256
+    else:
+        batch_size = 8
+        dec_len = 512
 
     loss_func = torch.nn.CrossEntropyLoss(ignore_index=-100)
     optimizer = bmp.optim.AdamOptimizer(model.parameters(), scale=2**20)
@@ -232,7 +234,7 @@ def main():
 
     if args.moe:
         from moe import BMMoE
-        BMMoE.moefy(model, args.num_expert, args.topk, checkpoint=args.moe_path)
+        BMMoE.moefy(model, args.num_expert, args.topk, checkpoint=args.moe_ckpt)
 
     bmp.synchronize()
     average_time = 0
@@ -278,7 +280,7 @@ def main():
             bmp.print_rank("Iteration:", iteration)
         exit()
 
-    for _ in range(3):
+    for epoch in range(3):
         
         if args.eval:
             model.eval()
@@ -287,7 +289,10 @@ def main():
 
         for iteration, data in enumerate(Trainer.batch_iter(dataset, batch_size, bmp.rank(), bmp.world_size())):
 
-            if args.eval and iteration < 20000:
+            if epoch == 0 and args.resuming_step != 0 and iteration < args.resuming_step:
+                continue
+
+            if args.eval and iteration < 320000:
                 continue
 
             st = time.time()
@@ -315,7 +320,6 @@ def main():
                 global_loss = bmp.sum_loss(loss).item()
 
             loss = optimizer.loss_scale(loss)
-            loss.backward()
 
             if iteration % 1000 == 0:
                 print_inspect(model, "*")
@@ -323,10 +327,11 @@ def main():
             
             if args.eval:
                 eval_losses.append(global_loss)
-                if iteration == 20099:
+                if iteration == 321599:
                     bmp.print_rank(f"Average Loss: {np.mean(eval_losses):.4f}")
                     exit()
             else:
+                loss.backward()
                 bmp.optim_step(optimizer, lr_scheduler)
             
 
@@ -354,7 +359,7 @@ def main():
                             average_time / (1 - pow(average_time_shift, iteration + 1))
                         )
                     ) 
-            if iteration % args.save_interval == 0: 
+            if iteration % args.save_interval == 0 and not args.eval: 
                 ckpt_file = Path(args.save_dir, 'checkpoints', f'ckpt-{iteration}.pt')
                 bmp.save(model, ckpt_file) 
             if args.model == "gpt-relu":

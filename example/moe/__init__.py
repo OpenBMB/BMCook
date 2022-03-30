@@ -22,13 +22,21 @@ class BMMoE:
         '''
         # after parameter initialization
 
-        for i, layer in enumerate(model.dec_layers):
+        for layer_idx in range(len(model.dec_layers)):
+            layer = model.dec_layers[layer_idx]
+
+            path = os.path.join(checkpoint, 'gp_split', 'dec_layers.{}.ff.fc_in_weight.model'.format(layer_idx))
+
+            if not os.path.exists(path):
+                continue
+
             ff = layer._module.ff
             ff.moe = True
+            ff.layer_idx = layer_idx
 
-            ff.markers = torch.load(os.path.join(checkpoint, 'gp_split', 'layer_{}_input_compl'.format(i)))
+            ff.markers = torch.load(path).to("cuda:{}".format(torch.cuda.current_device()))
 
-            label_file = os.path.join(checkpoint, 'gp_split', 'layer_{}'.format(i))
+            label_file = os.path.join(checkpoint, 'gp_split', 'dec_layers.{}.ff.fc_in_weight'.format(layer_idx))
             labels = torch.load(label_file)
             cluster_num = max(labels)+1
             assert cluster_num == num_expert

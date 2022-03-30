@@ -28,6 +28,7 @@ def parse_args():
     # Hyperparameters
     p.add_argument('--start-lr', type=float, default=0.01, help='Start learning rate of inverse square root')
     p.add_argument('--init-std', type=float, default=0.02, help="Standard deviation of normal distribution for initializing model parameters")
+    p.add_argument('--resuming-step', type=int, default=0, help="Continue training from a specific step")
 
     # evaluation
     p.add_argument('--eval', action='store_true', help='Turn off dropout and evaluate the model on the test set')
