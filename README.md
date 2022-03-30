@@ -116,19 +116,6 @@ Model pruning：
      --load-teacher gpt-j.bin
 ```
 
-Transform the activation function from GeLU to ReLU：
-```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-relu \
-     --model gpt-j-full-relu \
-     --start-lr 1e-4 \
-     --load gpt-j.bin \
-     --use-kd \
-     --kd-mse-last-hidden \
-     --kd-loss-scale 1 \
-     --load-teacher gpt-j.bin
-```
-
 MoEfication (save the hidden states and then use the MoEfication toolkit)：
 ```
     torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
