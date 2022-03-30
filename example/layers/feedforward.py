@@ -109,12 +109,13 @@ class GPTJFF(bmp.DistributedModule):
         w_out = self.fc_out_weight
 
         if self.moe is not None:
-            xx = x.float().transpose(1,2).view(-1, hidden_size)
-            xx = xx / torch.norm(xx, dim=-1).unsqueeze(-1)
+            with torch.no_grad():
+                xx_ = x.float().transpose(1,2).reshape(-1, hidden_size)
+                xx = xx_ / torch.norm(xx_, dim=-1).unsqueeze(-1)
 
-            score = self.markers(xx)
-            labels = torch.topk(score, k=self.k, dim=-1)[1].view(bsz, seq_len, self.k)
-            cur_mask = torch.nn.functional.embedding(labels, self.patterns).sum(-2).transpose(1,2)
+                score = self.markers(xx)
+                labels = torch.topk(score, k=self.k, dim=-1)[1].reshape(bsz, seq_len, self.k)
+                cur_mask = torch.nn.functional.embedding(labels, self.patterns).sum(-2).transpose(1,2).detach()
 
         if self.act_func == 'gelu':
             x = self.relu(
@@ -125,7 +126,21 @@ class GPTJFF(bmp.DistributedModule):
                 ct.bmm(w_0.unsqueeze(0), False, x, False, int8=self.int8)
             )
         
-        if self.moe:
+        # with torch.no_grad():
+        #     if self.moe is not None:
+        #         activation = x.float()
+        #         activation = activation.transpose(1,2).reshape(-1, hidden_size*4)
+
+        #         score = torch.matmul(activation, self.patterns.transpose(0, 1))
+
+        #         labels = torch.topk(score, k=self.k, dim=-1)[1].view(bsz, seq_len, self.k)
+        #         cur_mask = torch.nn.functional.embedding(labels, self.patterns).sum(-2).transpose(1,2).detach()
+
+        # with torch.no_grad():
+        #     if self.moe is not None:
+        #         bmp.print_rank(((cur_mask == True) & (cur_mask_old == True)).sum().item(), (cur_mask == True).sum().item(), self.layer_idx)
+
+        if self.moe is not None:
             x[cur_mask == False] = 0
 
         # (1#batch, dim_model, dim_ff) @ (batch, dim_ff, seq_len) = (batch, dim_model, seq_len)
