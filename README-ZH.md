@@ -25,7 +25,7 @@
 
 ## 最新动态
 
-- 2022/3/20 BMCook正式发布了！
+- 2022/3/20 (BMCook 0.1.0) 第一版BMCook发布了！
 
 <div id="overview"></div>
 
@@ -150,6 +150,16 @@ $ git clone git@github.com:OpenBMB/BMCook.git
      --load-teacher gpt-j.bin
 ```
 
+## 功能对比
+
+|                 | Model Quantization | Model Pruning | Knowledge Distillation | Model MoEfication |
+|-----------------|--------------------|---------------|------------------------|-------------------|
+| [TextPruner](https://github.com/airaria/TextPruner)      |       -             | ✅             |          -              |      -             |
+| [TensorFlow Lite](https://www.tensorflow.org/lite) | ✅                  | ✅             |          -              |           -        |
+| [PyTorch](https://pytorch.org/)         | ✅                  | ✅             |            -            |          -         |
+| [TextBrewer](https://github.com/airaria/TextBrewer)      |           -         | ✅             | ✅                      |         -          |
+| BMCook          | ✅                  | ✅             | ✅                      | ✅                 |
+
 ## 开源社区
 
 欢迎贡献者参照我们的[贡献指南](https://github.com/OpenBMB/BMCook/blob/main/CONTRIBUTING.md)贡献相关代码。
@@ -163,14 +173,4 @@ $ git clone git@github.com:OpenBMB/BMCook.git
 ## 开源许可
 
 该工具包使用[Apache 2.0](https://github.com/OpenBMB/BMCook/blob/main/LICENSE)开源许可证。
-
-## 功能对比
-
-|                 | Model Quantization | Model Pruning | Knowledge Distillation | Model MoEfication |
-|-----------------|--------------------|---------------|------------------------|-------------------|
-| [TextPruner](https://github.com/airaria/TextPruner)      |       -             | ✅             |          -              |      -             |
-| [TensorFlow Lite](https://www.tensorflow.org/lite) | ✅                  | ✅             |          -              |           -        |
-| [PyTorch](https://pytorch.org/)         | ✅                  | ✅             |            -            |          -         |
-| [TextBrewer](https://github.com/airaria/TextBrewer)      |           -         | ✅             | ✅                      |         -          |
-| BMCook          | ✅                  | ✅             | ✅                      | ✅                 |
 
