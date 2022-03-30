@@ -27,7 +27,7 @@
 
 ## What's New
 
-- 2022/3/29 Now we publicly release BMCook 0.1.0 for more efficient big models.
+- 2022/3/29 (**BMCook 0.1.0**) Now we publicly release the first version of BMCook.
 
 <div id="overview"></div>
 
@@ -153,6 +153,16 @@ Combine quantization, pruning and knowledge distillation：
      --load-teacher gpt-j.bin
 ```
 
+## Comparisons
+
+|                 | Model Quantization | Model Pruning | Knowledge Distillation | Model MoEfication |
+|-----------------|--------------------|---------------|------------------------|-------------------|
+| [TextPruner](https://github.com/airaria/TextPruner)      |       -             | ✅             |          -              |      -             |
+| [TensorFlow Lite](https://www.tensorflow.org/lite) | ✅                  | ✅             |          -              |           -        |
+| [PyTorch](https://pytorch.org/)         | ✅                  | ✅             |            -            |          -         |
+| [TextBrewer](https://github.com/airaria/TextBrewer)      |           -         | ✅             | ✅                      |         -          |
+| BMCook          | ✅                  | ✅             | ✅                      | ✅                 |
+
 
 ## Community
 We welcome everyone to contribute codes following our [contributing guidelines](https://github.com/OpenBMB/BMCook/blob/main/CONTRIBUTING.md).
@@ -166,14 +176,4 @@ You can also find us on other platforms:
 ## License
 
 The package is released under the [Apache 2.0](https://github.com/OpenBMB/BMCook/blob/main/LICENSE) License.
-
-## Comparisons
-
-|                 | Model Quantization | Model Pruning | Knowledge Distillation | Model MoEfication |
-|-----------------|--------------------|---------------|------------------------|-------------------|
-| [TextPruner](https://github.com/airaria/TextPruner)      |       -             | ✅             |          -              |      -             |
-| [TensorFlow Lite](https://www.tensorflow.org/lite) | ✅                  | ✅             |          -              |           -        |
-| [PyTorch](https://pytorch.org/)         | ✅                  | ✅             |            -            |          -         |
-| [TextBrewer](https://github.com/airaria/TextBrewer)      |           -         | ✅             | ✅                      |         -          |
-| BMCook          | ✅                  | ✅             | ✅                      | ✅                 |
 
