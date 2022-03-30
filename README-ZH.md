@@ -137,6 +137,16 @@ $ git clone git@github.com:OpenBMB/BMCook.git
      --load-teacher gpt-j.bin
 ```
 
+## 压缩效果
+
+|                        |     LM Loss    |     Relative Performance    |     Speedup    |
+|------------------------|----------------|-----------------------------|----------------|
+|     GPT-J              |           3.37 |                        -    |          1x    |
+|     GPT-J (P+D)        |           3.57 |                       94.4% |          2x    |
+|     GPT-J (P+D+Q)      |           3.58 |                       94.1% |          8x    |
+|     GPT-J (P+D+Q+M)    |           3.69 |                       91.3% |          10x   |
+
+
 ## 功能对比
 
 |                 | Model Quantization | Model Pruning | Knowledge Distillation | Model MoEfication |
