@@ -71,9 +71,21 @@ $ torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_
   --start-lr 1e-4 \
   --load gpt-j-relu.bin \
   --save-hidden
-$ python split.py results/gpt-j-moe
-$ python routing.py results/gpt-j-moe
+$ python moefication/param_cluster_example.py \
+  --model_path gpt-j-relu.bin \
+  --res_path results/gpt-j-moe \
+  --num-layer 28 \
+  --num-expert 512 \
+  --templates dec_layers.{}.ff.fc_in_weight
+$ python moefication/mlp_select_example.py \
+  --model_path gpt-j-relu.bin \
+  --res_path results/gpt-j-moe \
+  --num-layer 28 \
+  --num-expert 512 \
+  --templates dec_layers.{}.ff.fc_in_weight
 ```
+
+Please refer to the repo of [MoEfication](https://github.com/thunlp/MoEfication) for more details.
 
 ## Combination
 
