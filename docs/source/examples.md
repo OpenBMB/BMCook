@@ -50,6 +50,7 @@ $ torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_
 ## MoEfication
 
 Transform the activation function from GeLU to ReLU：
+
 ```
 $ torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
   --save-dir results/gpt-j-relu \
