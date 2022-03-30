@@ -1,6 +1,6 @@
 <div align="center">
 
-<h1>♾ BMInf</h1>
+<h1>🍳 BMCook</h1>
 
 **大模型压缩工具包**
 
