@@ -153,6 +153,19 @@ Combine quantization, pruning and knowledge distillation：
      --load-teacher gpt-j.bin
 ```
 
+## Performances
+
+Based on GPT-J, we evaluate different combinations of compression techniques. The corpus is OpenWebText.
+
+|                        |     LM Loss    |     Relative Performance    |     Speedup    |
+|------------------------|----------------|-----------------------------|----------------|
+|     GPT-J              |           3.37 |                        -    |          1x    |
+|     GPT-J (P+D)        |           3.57 |                       94.4% |          2x    |
+|     GPT-J (P+D+Q)      |           3.58 |                       94.1% |          8x    |
+|     GPT-J (P+D+Q+M)    |           3.69 |                       91.3% |          10x   |
+
+D denotes knowledge distillation. P denotes pruning. Q denotes quantization. M denotes MoEfication.
+
 ## Comparisons
 
 |                 | Model Quantization | Model Pruning | Knowledge Distillation | Model MoEfication |
