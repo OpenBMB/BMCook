@@ -163,6 +163,9 @@ Combine quantization, pruning and knowledge distillation：
 | [TextBrewer](https://github.com/airaria/TextBrewer)      |           -         | ✅             | ✅                      |         -          |
 | BMCook          | ✅                  | ✅             | ✅                      | ✅                 |
 
+## TODO
+
+In the next version, we will provide a one-line interface for the compression of arbitrary PLMs. Stay tuned!
 
 ## Community
 We welcome everyone to contribute codes following our [contributing guidelines](https://github.com/OpenBMB/BMCook/blob/main/CONTRIBUTING.md).
