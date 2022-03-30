@@ -180,3 +180,6 @@ You can also find us on other platforms:
 
 The package is released under the [Apache 2.0](https://github.com/OpenBMB/BMCook/blob/main/LICENSE) License.
 
+## Contributors
+
+We thank Zhengyan Zhang, Yingfa Chen, Guoyang Zeng, Jie Zhou, and Zhi Zheng for the contribution. More contributors are welcome!
