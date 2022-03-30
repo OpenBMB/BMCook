@@ -11,4 +11,8 @@ class BMQuant:
 
         :param model: Model to quantize.
         '''
-        model.int8 = True
+        # Will implement more generally in the next version to support arbitrary models
+        for layer_idx in range(len(model.dec_layers)):
+            layer = model.dec_layers[layer_idx]
+            layer._module.ff.int8 = True
+            layer._module.self_attention.int8 = True
