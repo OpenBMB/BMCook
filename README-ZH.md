@@ -139,11 +139,12 @@ $ git clone git@github.com:OpenBMB/BMCook.git
 
 ## 压缩效果
 
-基于GPT-J，我们评估了不同的压缩组合，语料库使用了OpenWebText。
+基于GPT-J (6B)，我们评估了不同的压缩组合，语料库使用了OpenWebText。同时，我们基于该语料从头训练了一个0.7B参数的GPT-J作为对比。
 
 |                        |     LM Loss    |     Relative Performance    |     Speedup    |
 |------------------------|----------------|-----------------------------|----------------|
 |     GPT-J              |           3.37 |                        -    |          1x    |
+|     GPT-J (0.7B)       |           4.06 |                       83.0% |         ~10x   |
 |     GPT-J (P+D)        |           3.57 |                       94.4% |          2x    |
 |     GPT-J (P+D+Q)      |           3.58 |                       94.1% |          8x    |
 |     GPT-J (P+D+Q+M)    |           3.69 |                       91.3% |          10x   |
