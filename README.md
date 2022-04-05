@@ -142,11 +142,12 @@ Combine quantization, pruning and knowledge distillation：
 
 ## Performances
 
-Based on GPT-J, we evaluate different combinations of compression techniques. The corpus is OpenWebText.
+Based on GPT-J, we evaluate different combinations of compression techniques. The corpus is OpenWebText. We also train a small GPT-J with 0.7B parameters based on this corpus from scratch, GPT-J (0.7B).
 
 |                        |     LM Loss    |     Relative Performance    |     Speedup    |
 |------------------------|----------------|-----------------------------|----------------|
 |     GPT-J              |           3.37 |                        -    |          1x    |
+|     GPT-J (0.7B)       |           4.06 |                       83.0% |         ~10x   |
 |     GPT-J (P+D)        |           3.57 |                       94.4% |          2x    |
 |     GPT-J (P+D+Q)      |           3.58 |                       94.1% |          8x    |
 |     GPT-J (P+D+Q+M)    |           3.69 |                       91.3% |          10x   |
