@@ -15,6 +15,7 @@ Contents
 
 .. toctree::
    :maxdepth: 2
+   :caption: GETTING STARTED
 
    introduction.md
    installation.md
