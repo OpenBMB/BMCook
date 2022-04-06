@@ -1,4 +1,4 @@
-Welcome to BMCook's documentation!
+BMCook's documentation!
 ===================================
 
 BMCook is a model compression toolkit for large-scale pre-trained language models (PLMs), which integrates multiple model compression methods. You can combine them in any way to achieve the desired speedup.
