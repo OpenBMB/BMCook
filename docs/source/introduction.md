@@ -8,7 +8,7 @@ Quantization compresses neural networks into smaller sizes by representing param
 
 In this toolkit, we quantize all linear transformations in the model, which cover over 90% of Transformer computation. For token embedding and attention matrices, we still use floating points, which ensure good performance with little computation cost.
 
-## Model Pruning: 
+## Model Pruning
 
 Pruning compresses neural networks by removing unimportant parameters. According to the granularity of pruning, it is categorized into structured pruning and unstructured pruning. In this toolkit, we implement both pruning methods.
 
