@@ -1,5 +1,5 @@
 import torch
-import bmtrain as bmp
+import bmtrain as bmt
 import cpm_kernels.torch as ct
 import math
 

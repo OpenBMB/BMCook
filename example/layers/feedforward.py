@@ -1,6 +1,6 @@
 import torch
 import cpm_kernels.torch as ct
-import bmtrain as bmp
+import bmtrain as bmt
 import math
 import numpy as np
 

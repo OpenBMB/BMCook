@@ -1,7 +1,7 @@
 from collections import defaultdict
 import types
 import torch
-import bmtrain as bmp
+import bmtrain as bmt
 from bmtrain.block_layer import storage_type_cuda, round_up
 from .prune_func import m4n2_2d_greedy, m4n2_2d_best
 import os

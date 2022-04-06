@@ -1,7 +1,7 @@
 import json
 import torch
 import random
-import bmtrain as bmp
+import bmtrain as bmt
 import layers
 from tqdm import tqdm
 import time

@@ -1,5 +1,5 @@
 import torch
-import bmtrain as bmp
+import bmtrain as bmt
 from cpm_kernels.torch.position_embedding import OpPositionEmbedding
 
 class PositionEmbedding(bmp.DistributedModule):

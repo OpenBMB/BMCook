@@ -6,7 +6,7 @@ import numpy as np
 from .attention import Attention, GPTJAtt
 from .layernorm import LayerNorm
 from .feedforward import FeedForward, GPTJFF
-import bmtrain as bmp
+import bmtrain as bmt
 
 class TransformerEncoder(torch.nn.Module):
     def __init__(self,
