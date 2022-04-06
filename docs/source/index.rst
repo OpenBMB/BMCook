@@ -23,6 +23,6 @@ Contents
    
 .. toctree::
    :maxdepth: 2
-   :caption: API References
+   :caption: PACKAGE REFERENCE
 
    api
