@@ -25,4 +25,7 @@ Contents
    :maxdepth: 2
    :caption: PACKAGE REFERENCE
 
-   api
+   api/distill.rst
+   api/prune.rst
+   api/quant.rst
+   api/moe.rst
