@@ -2,13 +2,13 @@ import torch
 import bmtrain as bmt
 from cpm_kernels.torch.position_embedding import OpPositionEmbedding
 
-class PositionEmbedding(bmp.DistributedModule):
+class PositionEmbedding(bmt.DistributedModule):
     def __init__(self, num_heads, num_buckets, max_distance,
-                 init_method: bmp.ParameterInitializer,
+                 init_method: bmt.ParameterInitializer,
                  bidirectional=True,
                  dtype=torch.half):
         super().__init__()
-        self.weight = bmp.DistributedParameter(torch.randn(num_heads,
+        self.weight = bmt.DistributedParameter(torch.randn(num_heads,
             num_buckets, dtype=dtype), init_method=init_method)
 
         self.num_heads = num_heads

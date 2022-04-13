@@ -3,7 +3,7 @@ import types
 import torch
 import bmtrain as bmt
 from bmtrain.block_layer import storage_type_cuda, round_up
-from .prune_func import m4n2_2d_greedy, m4n2_2d_best
+from prune_func import m4n2_1d, m4n2_2d_greedy
 import os
 
 def get_trivial_mask(p):
@@ -107,7 +107,7 @@ class BMPrune:
 
             _masks.append((dec_layer._storage_params, storaged_mask))
 
-        if storaged_masks is None and checkpoint is not None and bmp.global_var.config["rank"] == 0:
+        if storaged_masks is None and checkpoint is not None and bmt.global_var.config["rank"] == 0:
             torch.save(storaged_masks_, checkpoint)
 
         cls._masks = _masks

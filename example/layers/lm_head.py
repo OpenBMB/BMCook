@@ -4,12 +4,12 @@ from cpm_kernels.torch.embedding import OpEmbedding
 import cpm_kernels.torch as ct
 import math
 
-class LMHead(bmp.DistributedModule):
-    def __init__(self, vocab_size : int, embedding_size : int, init_method : bmp.ParameterInitializer, dtype=torch.half):
+class LMHead(bmt.DistributedModule):
+    def __init__(self, vocab_size : int, embedding_size : int, init_method : bmt.ParameterInitializer, dtype=torch.half):
         super().__init__()
         self.dim_model = embedding_size
-        self.weight = bmp.DistributedParameter(torch.empty(vocab_size, embedding_size, dtype=dtype), init_method=init_method)
-        self.bias = bmp.DistributedParameter(torch.empty(1, vocab_size, 1, dtype=dtype), init_method=bmp.ParameterInitializer(torch.nn.init.zeros_))
+        self.weight = bmt.DistributedParameter(torch.empty(vocab_size, embedding_size, dtype=dtype), init_method=init_method)
+        self.bias = bmt.DistributedParameter(torch.empty(1, vocab_size, 1, dtype=dtype), init_method=bmt.ParameterInitializer(torch.nn.init.zeros_))
 
     def forward(self, x : torch.Tensor):
         """

@@ -1,8 +1,77 @@
-# Examples
+# Quick Start
+
+## Usage of Different Modules
+
+### Quantization
+
+You can use `BMQuant` to enable quantization-aware training as follows:
+
+```
+  BMQuant.quantize(model)
+```
+
+To use this module, you need to implement the linear transformations with the following format:
+
+```
+  # original:
+  # torch.nn.functional.linear(input, weight, bias=None)
+  import cpm_kernels.torch as ct
+  ct.bmm(weight.unsqueeze(0), False, input, False, int8=self.int8)
+```
+
+where `weight` is the weight tensor, `input` is the input tensor. Modules have the attribute `int8`, which is a boolean, to control whether the operation is quantized.
+
+### Knowledge Distillation
+
+You can use `BMDistill` to enable knowledge distillation as follows:
+
+```
+  BMDistill.set_forward(model, teacher_model, foward_fn)
+```
+
+It will modify the forward function to add distillation loss.
+
+Here is an example of the forward function.
+
+```
+  def forward(model, dec_input, dec_length, targets, loss_func, 
+              output_hidden_states=False):
+      outputs = model(
+          dec_input, dec_length, output_hidden_states=output_hidden_states)
+      logits = outputs[0]
+      batch, seq_len, vocab_out_size = logits.size()
+
+      loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
+
+      return (loss,) + outputs
+```
+
+### Weight Pruning
+
+You can use `BMPrune` to enable pruning-aware training as follows:
+
+```
+  BMPrune.compute_mask(model, prune_func, checkpoint=pruning_mask_path)
+  BMPrune.set_optim_for_pruning(optimizer)
+```
+
+`prune_func` is used to compute the pruning mask to construct 2:4 sparsity patterns, which could be accelerated on NVIDIA GPUs. It is recommended to used `m4n2_2d_greedy` which can support the combination with MoEfication. If you only need pruning, you can use `m4n2_1d` instead.
+
+### MoEfication
+
+You can use `BMMoE` to simulate the MoE operation based on the result of MoEfication as follows:
+
+```
+  BMMoE.moefy(model, num_expert, topk, checkpoint_path)
+```
+
+For more details, please refer to the API documentation.
+
+## Examples Based on GPT-J
 
 In the `example` folder, we provide the example codes based on GPT-J (6B).
 
-## Quantization-aware training
+### Quantization-aware training
 
 Quantization-aware training:
 
@@ -30,7 +99,7 @@ $ torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_
   --load-teacher gpt-j.bin
 ```
 
-## Model pruning
+### Model pruning
 
 Model pruning with knowledge distillation:
 
@@ -47,7 +116,7 @@ $ torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_
   --load-teacher gpt-j.bin
 ```
 
-## MoEfication
+### MoEfication
 
 Transform the activation function from GeLU to ReLU：
 
@@ -88,7 +157,7 @@ $ python moefication/mlp_select_example.py \
 
 Please refer to the repo of [MoEfication](https://github.com/thunlp/MoEfication) for more details.
 
-## Combination
+### Combination
 
 Furthermore, we combine different compression methods (Quantization, Pruning, and Knowledge Distillation):
 

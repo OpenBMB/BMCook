@@ -6,18 +6,18 @@ import numpy as np
 
 from .average import Average
 
-class FeedForward(bmp.DistributedModule):
+class FeedForward(bmt.DistributedModule):
     def __init__(self, 
             dim_model : int,
             dim_ff : int,
-            init_method : bmp.ParameterInitializer,
+            init_method : bmt.ParameterInitializer,
             int8=True,
             dtype=torch.half
         ):
         super().__init__()
-        self.w_0 = bmp.DistributedParameter(
+        self.w_0 = bmt.DistributedParameter(
             torch.empty(dim_ff, dim_model, dtype=dtype), init_method=init_method)
-        self.w_out = bmp.DistributedParameter(
+        self.w_out = bmt.DistributedParameter(
             torch.empty(dim_model, dim_ff, dtype=dtype), init_method=init_method)
 
         self.relu = torch.nn.ReLU()
@@ -39,7 +39,7 @@ class FeedForward(bmp.DistributedModule):
         """
         # (1#batch, dim_ff, dim_model) @ (batch, dim_model, seq_len) = (batch, dim_ff, seq_len)
 
-        # bmp.inspect.record_tensor(x, "ff_x")
+        # bmt.inspect.record_tensor(x, "ff_x")
 
         w_0 = self.w_0
         w_out = self.w_out
@@ -71,14 +71,14 @@ def gelu_new(x):
     return 0.5 * x * (1.0 + torch.tanh(math.sqrt(2.0 / math.pi) * (x + 0.044715 * torch.pow(x, 3.0))))
 
 
-class GPTJFF(bmp.DistributedModule):
-    def __init__(self, dim_model : int, dim_ff : int, init_method : bmp.ParameterInitializer, act_func='gelu' , int8=True, dtype=torch.half):
+class GPTJFF(bmt.DistributedModule):
+    def __init__(self, dim_model : int, dim_ff : int, init_method : bmt.ParameterInitializer, act_func='gelu' , int8=True, dtype=torch.half):
         super().__init__()
-        self.fc_in_weight = bmp.DistributedParameter(torch.empty(dim_ff, dim_model, dtype=dtype), init_method=init_method)
-        self.fc_in_bias = bmp.DistributedParameter(torch.zeros(1, dim_ff, 1, dtype=dtype))
+        self.fc_in_weight = bmt.DistributedParameter(torch.empty(dim_ff, dim_model, dtype=dtype), init_method=init_method)
+        self.fc_in_bias = bmt.DistributedParameter(torch.zeros(1, dim_ff, 1, dtype=dtype))
 
-        self.fc_out_weight = bmp.DistributedParameter(torch.empty(dim_model, dim_ff, dtype=dtype), init_method=init_method)
-        self.fc_out_bias = bmp.DistributedParameter(torch.zeros(1, dim_model, 1, dtype=dtype))
+        self.fc_out_weight = bmt.DistributedParameter(torch.empty(dim_model, dim_ff, dtype=dtype), init_method=init_method)
+        self.fc_out_bias = bmt.DistributedParameter(torch.zeros(1, dim_model, 1, dtype=dtype))
 
         self.act_func = act_func
         if act_func == 'gelu':
@@ -103,7 +103,7 @@ class GPTJFF(bmp.DistributedModule):
 
         bsz, hidden_size, seq_len = x.shape
 
-        bmp.inspect.record_tensor(x, "ff_x")
+        bmt.inspect.record_tensor(x, "ff_x")
 
         w_0 = self.fc_in_weight
         w_out = self.fc_out_weight
@@ -138,7 +138,7 @@ class GPTJFF(bmp.DistributedModule):
 
         # with torch.no_grad():
         #     if self.moe is not None:
-        #         bmp.print_rank(((cur_mask == True) & (cur_mask_old == True)).sum().item(), (cur_mask == True).sum().item(), self.layer_idx)
+        #         bmt.print_rank(((cur_mask == True) & (cur_mask_old == True)).sum().item(), (cur_mask == True).sum().item(), self.layer_idx)
 
         if self.moe is not None:
             x[cur_mask == False] = 0

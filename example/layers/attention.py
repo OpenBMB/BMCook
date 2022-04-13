@@ -4,28 +4,28 @@ import bmtrain as bmt
 import cpm_kernels.torch as ct
 import math
 
-class Attention(bmp.DistributedModule):
+class Attention(bmt.DistributedModule):
     def __init__(self,
             dim_model : int,
             num_heads : int,
             dim_head : int,
-            init_method : bmp.ParameterInitializer,
+            init_method : bmt.ParameterInitializer,
             int8=True,
             dtype=torch.half
         ):
         super().__init__()
 
-        self.project_q = bmp.DistributedParameter(
+        self.project_q = bmt.DistributedParameter(
             torch.empty(num_heads * dim_head, dim_model, dtype=dtype),
             init_method=init_method)
-        self.project_k = bmp.DistributedParameter(
+        self.project_k = bmt.DistributedParameter(
             torch.empty(num_heads * dim_head, dim_model, dtype=dtype),
             init_method=init_method)
-        self.project_v = bmp.DistributedParameter(
+        self.project_v = bmt.DistributedParameter(
             torch.empty(num_heads * dim_head, dim_model, dtype=dtype),
             init_method=init_method)
 
-        self.attention_out = bmp.DistributedParameter(
+        self.attention_out = bmt.DistributedParameter(
             torch.empty(dim_model, num_heads * dim_head, dtype=dtype),
             init_method=init_method)
 
@@ -52,7 +52,7 @@ class Attention(bmp.DistributedModule):
             out : (batch, dim_model, len_q)         fp16
         """
 
-        # bmp.inspect.record_tensor(hidden_q, "attn_x")
+        # bmt.inspect.record_tensor(hidden_q, "attn_x")
 
         batch_size = hidden_q.size(0)
         len_q = hidden_q.size(2)
@@ -126,28 +126,28 @@ def apply_rotary_pos_emb(x, sincos, offset=0):
     # einsum notation for lambda t: repeat(t[offset:x.shape[1]+offset,:], "n d -> () n () (d j)", j=2)
     return (x * cos) + (rotate_every_two(x) * sin)
 
-class GPTJAtt(bmp.DistributedModule):
+class GPTJAtt(bmt.DistributedModule):
     def __init__(self,
             dim_model : int,
             num_heads : int,
             dim_head : int,
-            init_method: bmp.ParameterInitializer,
+            init_method: bmt.ParameterInitializer,
             int8=True,
             dtype=torch.half
         ):
         super().__init__()
 
-        self.q_proj = bmp.DistributedParameter(
+        self.q_proj = bmt.DistributedParameter(
             torch.empty(num_heads * dim_head, dim_model, dtype=dtype),
             init_method=init_method)
-        self.k_proj = bmp.DistributedParameter(
+        self.k_proj = bmt.DistributedParameter(
             torch.empty(num_heads * dim_head, dim_model, dtype=dtype),
             init_method=init_method)
-        self.v_proj = bmp.DistributedParameter(
+        self.v_proj = bmt.DistributedParameter(
             torch.empty(num_heads * dim_head, dim_model, dtype=dtype),
             init_method=init_method)
 
-        self.out_proj = bmp.DistributedParameter(
+        self.out_proj = bmt.DistributedParameter(
             torch.empty(dim_model, num_heads * dim_head, dtype=dtype), 
             init_method=init_method)
 
@@ -176,7 +176,7 @@ class GPTJAtt(bmp.DistributedModule):
             out : (batch, dim_model, len_q)         fp16
         """
 
-        # bmp.inspect.record_tensor(hidden_q, "attn_x")
+        # bmt.inspect.record_tensor(hidden_q, "attn_x")
 
         batch_size = hidden_q.size(0)
         len_q = hidden_q.size(2)
