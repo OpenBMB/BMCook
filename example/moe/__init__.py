@@ -6,13 +6,27 @@ import os
 
 class BMMoE:
     '''
-    BMMoE replaces the feed-forward modules in PLMs with MoE modules.
+    BMMoE replaces the feed-forward modules in PLMs with MoE simulation modules.
     '''
 
     @staticmethod
     def moefy(model, num_expert, topk, checkpoint=None):
         '''
         Replace the feed-forward modules in PLMs with MoE modules according to the results of MoEfication from the checkpoint file.
+
+        To use this method, you need to implement router operation in FFNs as follows:
+
+        if self.moe is not None:
+            with torch.no_grad():
+                xx_ = input.float().transpose(1,2).reshape(-1, hidden_size)
+                xx = xx_ / torch.norm(xx_, dim=-1).unsqueeze(-1)
+
+                score = self.markers(xx)
+                labels = torch.topk(score, k=self.k, dim=-1)[1].reshape(bsz, seq_len, self.k)
+                cur_mask = torch.nn.functional.embedding(labels, self.patterns).sum(-2).transpose(1,2).detach()
+
+        if self.moe is not None:
+            inter_hidden[cur_mask == False] = 0
 
         :param model: Model to MoEfy.
         :param num_expert: Number of experts.
