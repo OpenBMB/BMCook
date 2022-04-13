@@ -26,4 +26,4 @@ MoEfication utilizes the sparse activation phenomenon in PLMs and splits the fee
 
 ## Overall Framework
 
-![](image/framework.png)
+![](images/framework.png)
