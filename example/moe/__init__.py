@@ -32,7 +32,6 @@ class BMMoE:
         :param num_expert: Number of experts.
         :param topk: Top-k for each expert.
         :param checkpoint: Path to load the MoEfication results.
-        :return: MoEfied model.
         '''
         # after parameter initialization
 
