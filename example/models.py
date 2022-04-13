@@ -19,15 +19,15 @@ class T5(torch.nn.Module):
         self.num_enc = num_enc
         self.num_dec = num_dec
 
-        self.enc_layers = bmp.TransformerBlockList([
-            bmp.CheckpointBlock(
+        self.enc_layers = bmt.TransformerBlockList([
+            bmt.CheckpointBlock(
                 layers.TransformerEncoder(dim_model, num_heads, dim_head, dim_ff, eps, int8=int8, dtype=dtype)
             )
             for _ in range(num_enc)
         ])
 
-        self.dec_layers = bmp.TransformerBlockList([
-            bmp.CheckpointBlock(
+        self.dec_layers = bmt.TransformerBlockList([
+            bmt.CheckpointBlock(
                 layers.TransformerDecoder(dim_model, num_heads, dim_head, dim_ff, eps, int8=int8, dtype=dtype)
             )
             for _ in range(num_dec)
@@ -112,12 +112,12 @@ class GPT(torch.nn.Module):
         ):
         super().__init__()
         
-        init_method = bmp.ParameterInitializer(torch.nn.init.normal_, mean=0.0, std=init_std)
+        init_method = bmt.ParameterInitializer(torch.nn.init.normal_, mean=0.0, std=init_std)
 
         self.num_dec = num_dec
 
-        self.dec_layers = bmp.TransformerBlockList([
-            bmp.CheckpointBlock(
+        self.dec_layers = bmt.TransformerBlockList([
+            bmt.CheckpointBlock(
                 layers.TransformerDecoder(dim_model, num_heads, dim_head, 
                     dim_ff, eps, init_method=init_method, int8=int8,
                     dtype=dtype, cross_attn=False
@@ -215,10 +215,10 @@ class GPTJ(torch.nn.Module):
         self.num_dec = num_dec
         self.dim_model = dim_model
 
-        init_method = bmp.ParameterInitializer(torch.nn.init.normal_, mean=0.0, std=init_std)
+        init_method = bmt.ParameterInitializer(torch.nn.init.normal_, mean=0.0, std=init_std)
 
-        self.dec_layers = bmp.TransformerBlockList([
-            bmp.CheckpointBlock(
+        self.dec_layers = bmt.TransformerBlockList([
+            bmt.CheckpointBlock(
                 layers.GPTJDecoder(dim_model, num_heads, dim_head, dim_ff, eps, int8=int8, dtype=dtype, cross_attn=False, init_method=init_method, act_func=act_func)
             )
             for _ in range(num_dec)

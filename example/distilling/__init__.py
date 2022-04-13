@@ -5,7 +5,7 @@ import torch.nn.functional as F
 import cpm_kernels.torch as ct
 
 
-class HiddenMap(bmp.DistributedModule):
+class HiddenMap(bmt.DistributedModule):
     def __init__(self, dim_from, dim_to, dtype=torch.half, 
                  init_std=0.02, int8=False):
         super().__init__()
@@ -13,9 +13,9 @@ class HiddenMap(bmp.DistributedModule):
         self.dtype = dtype
         self.int8 = int8
 
-        init_method = bmp.ParameterInitializer(
+        init_method = bmt.ParameterInitializer(
             nn.init.normal_, mean=0.0, std=init_std)
-        self.map = bmp.DistributedParameter(
+        self.map = bmt.DistributedParameter(
             torch.empty(dim_to, dim_from, dtype=dtype), 
             init_method=init_method)
     
@@ -94,8 +94,8 @@ class BMDistill:
 
         if mse_hidden_states:
             cls.hidden_map = HiddenMap(teacher.dim_model, student.dim_model)
-            bmp.init_parameters(cls.hidden_map)
-            bmp.synchronize()
+            bmt.init_parameters(cls.hidden_map)
+            bmt.synchronize()
 
         def forward(model, dec_input, dec_length, targets, loss_func):
             outputs = foward_fn(

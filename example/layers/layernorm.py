@@ -3,13 +3,13 @@ import bmtrain as bmt
 from cpm_kernels.torch.layernorm import OpLayerNormMean, OpLayerNormNoMean
 
 
-class LayerNorm(bmp.DistributedModule):
+class LayerNorm(bmt.DistributedModule):
     def __init__(self, hidden_size : int, eps : float = 1e-5, bias=True, dtype=torch.half):
         super().__init__()
         self.eps = eps
         self.hidden_size = hidden_size
-        self.weight = bmp.DistributedParameter(torch.ones(hidden_size, dtype=dtype))
-        self.bias = bmp.DistributedParameter(torch.zeros(hidden_size, dtype=dtype)) if bias else None
+        self.weight = bmt.DistributedParameter(torch.ones(hidden_size, dtype=dtype))
+        self.bias = bmt.DistributedParameter(torch.zeros(hidden_size, dtype=dtype)) if bias else None
     
     def forward(self, x : torch.Tensor):
         """

@@ -3,11 +3,11 @@ import bmtrain as bmt
 import cpm_kernels.torch as ct
 import math
 
-class Projection(bmp.DistributedModule):
+class Projection(bmt.DistributedModule):
     def __init__(self, vocab_size : int, embedding_size : int, dtype=torch.half):
         super().__init__()
         self.dim_model = embedding_size
-        self.weight = bmp.DistributedParameter(torch.empty(vocab_size, embedding_size, dtype=dtype), init_method=init_method)
+        self.weight = bmt.DistributedParameter(torch.empty(vocab_size, embedding_size, dtype=dtype), init_method=init_method)
 
     def forward(self, x : torch.Tensor):
         """

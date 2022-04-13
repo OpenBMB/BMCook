@@ -15,7 +15,7 @@ class TransformerEncoder(torch.nn.Module):
             dim_head : int,
             dim_ff : int,
             eps : float,
-            init_method : bmp.ParameterInitializer,
+            init_method : bmt.ParameterInitializer,
             int8=True,
             dtype=torch.half):
         super().__init__()
@@ -58,7 +58,7 @@ class TransformerDecoder(torch.nn.Module):
             dim_head : int,
             dim_ff : int,
             eps : float,
-            init_method : bmp.ParameterInitializer,
+            init_method : bmt.ParameterInitializer,
             int8=True,
             dtype=torch.half,
             cross_attn=True):
@@ -138,7 +138,7 @@ class GPTJDecoder(torch.nn.Module):
             dim_head : int, 
             dim_ff : int, 
             eps : float, 
-            init_method : bmp.ParameterInitializer, 
+            init_method : bmt.ParameterInitializer, 
             int8=True, 
             dtype=torch.half, 
             cross_attn=True,
