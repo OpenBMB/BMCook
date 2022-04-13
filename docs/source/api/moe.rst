@@ -9,6 +9,7 @@ BMMoE
 To use this module, you need to implement router operation in FFNs as follows:
 
 .. code-block:: python
+
    if self.moe is not None:
    with torch.no_grad():
          xx_ = input.float().transpose(1,2).reshape(-1, hidden_size)
@@ -19,6 +20,7 @@ To use this module, you need to implement router operation in FFNs as follows:
          cur_mask = torch.nn.functional.embedding(labels, self.patterns).sum(-2).transpose(1,2).detach()
 
 .. code-block:: python
+   
    if self.moe is not None:
       inter_hidden[cur_mask == False] = 0
 
