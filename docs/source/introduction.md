@@ -23,3 +23,7 @@ In this toolkit, we implement the knowledge distillation losses based on output 
 ## Model MoEfication
 
 MoEfication utilizes the sparse activation phenomenon in PLMs and splits the feed-forward networks into several small expert networks for conditional computation of PLMs. Please refer to [this paper](https://arxiv.org/abs/2110.01786) for more details.
+
+## Overall Framework
+
+![](image/framework.png)
