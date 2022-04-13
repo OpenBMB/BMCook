@@ -3,6 +3,7 @@ import types
 import torch
 import bmtrain as bmt
 from bmtrain.block_layer import storage_type_cuda, round_up
+from prune_func import m4n2_1d, m4n2_2d_greedy
 import os
 
 def get_trivial_mask(p):

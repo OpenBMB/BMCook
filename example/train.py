@@ -8,7 +8,7 @@ import time
 from data import MMapIndexedDataset, Dataset
 import numpy as np
 import pickle as pkl
-from pruning import BMPrune, m4n2_2d_greedy, m4n2_2d_best
+from pruning import BMPrune, m4n2_2d_greedy
 from distilling import BMDistill
 from arguments import parse_args
 from pathlib import Path
