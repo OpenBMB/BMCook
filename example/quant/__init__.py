@@ -5,10 +5,12 @@ class BMQuant:
 
     To use this module, you need to implement the linear transformations with the following format:
 
+    ```
     import cpm_kernels.torch as ct
     ct.bmm(w.unsqueeze(0), False, x, False, int8=self.int8)
+    ```
 
-    where w is the weight tensor, x is the input tensor. Modules have the attribute int8, which is a boolean, to control whether the operation is quantized.
+    where `w` is the weight tensor, `x` is the input tensor. Modules have the attribute `int8`, which is a boolean, to control whether the operation is quantized.
     '''
 
     @classmethod
