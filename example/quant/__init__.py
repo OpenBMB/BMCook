@@ -5,7 +5,7 @@ class BMQuant:
 
     To use this module, you need to implement the linear transformations with the following format:
 
-    ```
+    ```python
     import cpm_kernels.torch as ct
     ct.bmm(w.unsqueeze(0), False, x, False, int8=self.int8)
     ```

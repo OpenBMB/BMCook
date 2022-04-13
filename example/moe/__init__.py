@@ -16,7 +16,7 @@ class BMMoE:
 
         To use this method, you need to implement router operation in FFNs as follows:
 
-        ```
+        ```python
         if self.moe is not None:
             with torch.no_grad():
                 xx_ = input.float().transpose(1,2).reshape(-1, hidden_size)
@@ -27,7 +27,7 @@ class BMMoE:
                 cur_mask = torch.nn.functional.embedding(labels, self.patterns).sum(-2).transpose(1,2).detach()
         ```
 
-        ```
+        ```python
         if self.moe is not None:
             inter_hidden[cur_mask == False] = 0
         ```
