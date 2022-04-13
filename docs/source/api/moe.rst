@@ -1,8 +1,8 @@
 ====================
-BMMoE
+MoEfication
 ====================
 
-Documentation
+BMMoE
 ==========================================
 
 .. autoclass:: moe.BMMoE

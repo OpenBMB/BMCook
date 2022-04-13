@@ -1,8 +1,8 @@
 ====================
-BMQuant
+Quantization
 ====================
 
-Documentation
+BMQuant
 ==========================================
 
 .. autoclass:: quant.BMQuant

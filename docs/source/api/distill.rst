@@ -1,8 +1,8 @@
 ====================
-BMDistill
+Distillation
 ====================
 
-Documentation
+BMDistill
 ==========================================
 
 .. autoclass:: distilling.BMDistill
