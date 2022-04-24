@@ -1,0 +1,8 @@
+{
+    "distillation": {
+        "ce_scale": 1,
+
+        "mse_hidn_scale": 1,
+        "mse_hidn_module": ["abcd"]
+    }
+}
