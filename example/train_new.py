@@ -2,6 +2,8 @@ import json
 import torch
 import random
 import bmtrain as bmt
+from transformers import GPT2ForTokenClassification
+from quant import BMQuant
 import layers
 from tqdm import tqdm
 import time
@@ -138,6 +140,9 @@ def main():
     # for pruning
     BMPrune.compute_mask(gpt, config)
     BMPrune.set_optim_for_pruning(optimizer)
+
+    # for quantization
+    # BMQuant.quantize(gpt, config)
 
     # if args.moe:
     #     from moe import BMMoE

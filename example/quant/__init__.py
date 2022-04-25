@@ -38,9 +38,9 @@ class BMQuant:
 def forward_in8(module_self, x):
     if module_self.length_scale and module_self.length_scale_before:
         x = x / math.sqrt(module_self.dim_in)
-    x = x.transpose(1, 2)
+    x = x.transpose(1, 2).contiguous()
     x = ct.bmm(module_self.weight.unsqueeze(0), False, x, False, int8=True)
-    x = x.transpose(1, 2)
+    x = x.transpose(1, 2).contiguous()
     if module_self.length_scale and not module_self.length_scale_before:
         x = x / math.sqrt(module_self.dim_in)
     if module_self.bias is not None:

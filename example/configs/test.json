@@ -12,5 +12,9 @@
         "pruning_mask_path": "/home/zhangzhengyan/BMCook/example/prune_example.bin",
         "pruned_module": ["ffn.ffn.w_in.w.weight", "ffn.ffn.w_out.weight", "input_embedding"],
         "mask_method": "m4n2_1d"
-      }
+    },
+
+    "quantization": {
+        "is_quant": true
+    }
 }
