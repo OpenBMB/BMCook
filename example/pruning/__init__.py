@@ -48,7 +48,13 @@ def mask_storage(ordered_masks, storage_params, storage_info):
             to_offset_end = offset_end + param_st - storage_st
 
             # copy to buffer
-            storaged_mask[storage_type].storage()[to_offset_st: to_offset_end].copy_(contiguous_param.storage()[offset_st: offset_end])
+            # PyTorch 1.11 changed the API of storage.__getitem__
+            d_dtype = storaged_mask[storage_type].dtype
+            d_device = storaged_mask[storage_type].device
+            if not d_device == contiguous_param.device:
+                contiguous_param = contiguous_param.to(device=d_device)
+            torch.tensor([], dtype=d_dtype, device=d_device).set_(storaged_mask[storage_type].storage(), to_offset_st, (to_offset_end - to_offset_st,))[:] = \
+                        torch.tensor([], dtype=d_dtype, device=d_device).set_(contiguous_param.storage(), offset_st, (offset_end - offset_st,))[:]
             del contiguous_param
     return storaged_mask
 
