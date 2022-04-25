@@ -14,7 +14,7 @@ default_values =  { "distillation": {
 
   "pruning": {
     "is_pruning": False,
-    "pruning_mask_path": "[placehold]",
+    "pruning_mask_path": None,
     "pruned_module": ['[placehold]'],
     "mask_method": "m4n2_1d/m4n2_2d",
   },

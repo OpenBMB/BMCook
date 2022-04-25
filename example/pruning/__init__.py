@@ -9,10 +9,10 @@ import os
 def get_trivial_mask(p):
     return torch.ones_like(p)
 
-def get_masks(ordered_parameters, func=get_trivial_mask, white_list=[]):
+def get_masks(ordered_parameters, func=get_trivial_mask, targets=[]):
     ordered_masks = []
     for name, param in ordered_parameters:
-        if any([white_name in name for white_name in white_list]) and len(param.shape) == 2:
+        if any([name == white_name for white_name in targets]) and len(param.shape) == 2:
             mask = func(param)
         else:
             mask = get_trivial_mask(param)
@@ -63,11 +63,9 @@ class BMPrune:
     _model = None
     _masks = None
     _optimizer = None
-    # _white_list = ['project', 'out', 'w_'] # gpt
-    _white_list = ['proj', 'fc_'] # gpt-j
 
     @classmethod
-    def compute_mask(cls, model, func, checkpoint=None):
+    def compute_mask(cls, model, config):
         '''
         Compute the pruning mask for each weight matrix and combine masks to match the parameters stored in the optimizer.
         
@@ -82,30 +80,64 @@ class BMPrune:
         storaged_masks = None
         storaged_masks_ = {}
 
+        prune_config = config.get("pruning")
+        checkpoint = prune_config['pruning_mask_path'] if 'pruning_mask_path' in prune_config else None
+        if prune_config['mask_method'] == 'm4n2_1d':
+            func = m4n2_1d
+        elif prune_config['mask_method'] == 'm4n2_2d':
+            func = m4n2_2d_greedy
+        else:
+            raise ValueError("Unknown mask method: {}".format(prune_config['mask_method']))
+
+
         if checkpoint is not None:
             if os.path.exists(checkpoint):
                 storaged_masks = torch.load(checkpoint, map_location='cpu')
-                assert len(storaged_masks) == len(model.dec_layers._modules)
 
-        for i, dec_layer in model.dec_layers._modules.items():
-            ordered_parameters = [(k, v) for k, v in dec_layer.state_dict().items()]
-            if storaged_masks is not None:
-                ordered_masks = storaged_masks[i]
-                names = [k for k, _ in ordered_masks]
-                assert len(set(names)) == len(names)
-                # match name order
-                d = {k: v for k, v in ordered_masks}
-                new_names = [k for k, _ in ordered_parameters]
-                ordered_masks = [(k, d[k]) for k in new_names]
+        target_param_names = []
+        for k in model.state_dict().keys():
+            if any([pattern in k for pattern in prune_config['pruned_module']]):
+                target_param_names.append(k)
 
-                storaged_mask = mask_storage(ordered_masks, dec_layer._storage_params, dec_layer._storage_info)
-            else:
-                ordered_masks = get_masks(ordered_parameters, func, white_list=cls._white_list)
-                storaged_mask = mask_storage(ordered_masks, dec_layer._storage_params, dec_layer._storage_info)
+        # for CheckpointBlock
+        used_params = []
+        for prefix, dec_layer in model.named_modules():
+            if bmt.block_layer.CheckpointBlock == type(dec_layer):
+                ordered_parameters = [(k, v) for k, v in dec_layer.state_dict().items()]
+                filtered_targets = [x[len(prefix)+1:] for x in target_param_names if x.startswith(prefix)]
+
+                if storaged_masks is not None:
+                    ordered_masks = storaged_masks[prefix]
+                    names = [k for k, _ in ordered_masks]
+                    assert len(set(names)) == len(names)
+                    # match name order
+                    d = {k: v for k, v in ordered_masks}
+                    new_names = [k for k, _ in ordered_parameters]
+                    ordered_masks = [(k, d[k]) for k in new_names]
+
+                    storaged_mask = mask_storage(ordered_masks, dec_layer._storage_params, dec_layer._storage_info)
+                else:
+                    ordered_masks = get_masks(ordered_parameters, func, targets=filtered_targets)
+                    storaged_mask = mask_storage(ordered_masks, dec_layer._storage_params, dec_layer._storage_info)
+                    
+                    storaged_masks_[prefix] = ordered_masks
                 
-                storaged_masks_[i] = ordered_masks
+                used_params.extend([prefix+'.'+x for x in filtered_targets])
+                _masks.append((dec_layer._storage_params, storaged_mask, True))    
 
-            _masks.append((dec_layer._storage_params, storaged_mask))
+        target_param_names = list(set(target_param_names) - set(used_params))
+
+        for prefix, dec_layer in model.named_modules():
+
+            if prefix+'.weight' in target_param_names:
+                if storaged_masks is not None:
+                    mask = storaged_masks[prefix]
+                else:
+                    mask = func(dec_layer.weight.data)
+                    storaged_masks_[prefix] = mask
+                
+                _masks.append((dec_layer.weight, mask, False))
+
 
         if storaged_masks is None and checkpoint is not None and bmt.global_var.config["rank"] == 0:
             torch.save(storaged_masks_, checkpoint)
@@ -129,16 +161,24 @@ class BMPrune:
         def _step(opt_self, *args, **kwargs):
             # prune gradients before step method
             with torch.no_grad():
-                for p, mask in cls._masks:
-                    for k in p:
-                        if p[k].grad is not None: #thx pjudd
-                            p[k].grad.mul_(mask[k])
+                for p, mask, flag in cls._masks:
+                    if flag:
+                        for k in p:
+                            if p[k].grad is not None:
+                                p[k].grad.mul_(mask[k])
+                    else:
+                        if p.grad is not None:
+                            p.grad.mul_(mask)
             # call original optimizer step method
             rval = opt_self.step_old(*args, **kwargs)
             # prune parameters after step method
             with torch.no_grad():
-                for p, mask in cls._masks:
-                    for k in p:
-                        p[k].mul_(mask[k])
+                for p, mask, flag in cls._masks:
+                    if flag:
+                        for k in p:
+                            p[k].mul_(mask[k])
+                    else:
+                        tmp_mask = torch.tensor(mask, dtype=p.dtype, device=p.device)
+                        p.mul_(tmp_mask)
             return rval
         cls._optimizer.step = types.MethodType(_step, cls._optimizer)

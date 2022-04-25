@@ -45,12 +45,13 @@ def mn_1d_best(matrix, m, n):
     # Find the best m:n pattern (sum of non-masked weights).
     mask = torch.cuda.IntTensor(matrix.shape).fill_(1).view(-1,m)
     mat,shape = reshape_1d(matrix,m)
-    pmax = torch.argmax(torch.matmul(mat.abs(),patterns.t()), dim=1)
+
+    pmax = torch.argmax(torch.matmul(mat.abs().float().cuda(), patterns.t()), dim=1)
     mask[:] = patterns[pmax[:]]
     mask = mask.view(matrix.shape)
-    return mask
+    return torch.tensor(mask, dtype=matrix.dtype)
 
-def m4n2_1d(mat, density):
+def m4n2_1d(mat):
     return mn_1d_best(mat, 4, 2)
 
 def mn_2d_greedy(matrix, m, n):

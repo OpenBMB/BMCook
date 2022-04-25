@@ -5,5 +5,12 @@
         "mse_hidn_scale": 1,
         "mse_hidn_module": ["[post]encoder.output_layernorm:[post]encoder.output_layernorm", "[pre]encoder.layers.9.ffn.layernorm_before_ffn:[pre]encoder.layers.9.ffn.layernorm_before_ffn"],
         "mse_hidn_proj": false
-    }
+    },
+
+    "pruning": {
+        "is_pruning": true,
+        "pruning_mask_path": "/home/zhangzhengyan/BMCook/example/prune_example.bin",
+        "pruned_module": ["ffn.ffn.w_in.w.weight", "ffn.ffn.w_out.weight", "input_embedding"],
+        "mask_method": "m4n2_1d"
+      }
 }

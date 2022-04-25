@@ -109,35 +109,6 @@ def main():
     config = ConfigParser('/home/zhangzhengyan/BMCook/example/configs/test.json')
     Trainer.forward = BMDistill.set_forward(gpt, teacher, Trainer.forward, config)
 
-    # Distillation
-    # if args.use_kd:
-    #     #assert args.model == "gpt-j", "Currently only support KD with GPT-J"
-    #     teacher = GPTJ(
-    #         num_dec=28,
-    #         dim_model=4096, num_heads=16, dim_head=256, dim_ff=16384,
-    #         vocab_size=50400,
-    #         init_std=args.init_std,
-    #         position_bias_num_buckets=32, position_bias_max_distance=128,
-    #         eps=1e-6, int8=False, dtype=torch.half
-    #     )
-    #     bmt.init_parameters(teacher)
-    #     bmt.load(teacher, args.load_teacher)
-
-    #     Trainer.forward = BMDistill.set_forward(
-    #         model,
-    #         teacher,
-    #         Trainer.forward,
-    #         output_kd_loss=True,
-    #         temp=args.kd_temp,
-    #         kd_loss_scale=args.kd_loss_scale,
-    #         ce_logits=args.kd_ce_logits,
-    #         mse_last_hidden=args.kd_mse_last_hidden,
-    #         mse_hidden_states=args.kd_mse_hidn,
-    #         mse_att=args.kd_mse_att,
-    #         mse_emb=args.kd_mse_emb,
-    #     )
-    #     teacher.eval()
-
     #print_inspect(model, "*")
     #bmt.print_rank("Model mem\n", torch.cuda.memory_summary())
     bmt.synchronize()
@@ -165,9 +136,8 @@ def main():
     lr_scheduler = bmt.lr_scheduler.Noam(optimizer, start_lr=1e-4, warmup_iter=2000, end_iter=100000)
 
     # for pruning
-    # if args.use_pruning:
-    #     BMPrune.compute_mask(model, m4n2_2d_greedy, checkpoint=args.pruning_mask_path)
-    #     BMPrune.set_optim_for_pruning(optimizer)
+    BMPrune.compute_mask(gpt, config)
+    BMPrune.set_optim_for_pruning(optimizer)
 
     # if args.moe:
     #     from moe import BMMoE
