@@ -159,6 +159,9 @@ class BMPrune:
 
         assert (cls._optimizer is None), "BMPrune.set_optim_for_pruning() can only be called once."
 
+        if cls._model is None:
+            return
+
         cls._optimizer = optimizer
         cls._optimizer.step_old = optimizer.step
 

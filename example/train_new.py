@@ -198,7 +198,7 @@ def main():
         outputs = Trainer.forward(
             gpt, enc_input, enc_length, targets, loss_func)
 
-        if config.get('MoEfication'):
+        if config.get('MoEfication')['is_moefy']:
             torch.save(outputs[-1], 'hiddens/' + '{}_{}'.format(iteration, bmt.rank()))
 
         loss = outputs[0]
