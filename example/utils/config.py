@@ -25,7 +25,7 @@ default_values =  { "distillation": {
   },
 
   "MoEfication": {
-    "is_pruning": False,
+    "is_moefy": False,
     "first_FFN_module": ['[placehold]'],
   }  
 }

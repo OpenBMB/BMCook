@@ -54,7 +54,8 @@ class BMDistill:
         '''
 
         distill_config = config.get('distillation')
-        assert distill_config['ce_scale'] + distill_config['mse_hidn_scale'] + distill_config['mse_att_scale'] > 0, 'At least one of the distillation loss should be non-zero.'
+        if distill_config['ce_scale'] + distill_config['mse_hidn_scale'] + distill_config['mse_att_scale'] == 0:
+            return foward_fn
 
         if distill_config['mse_hidn_scale'] > 0:
             s_module_map, t_module_map = get_module_map(distill_config['mse_hidn_module'])

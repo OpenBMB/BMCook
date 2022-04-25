@@ -3,6 +3,7 @@ import torch
 import random
 import bmtrain as bmt
 from transformers import GPT2ForTokenClassification
+from moe import BMMoE
 from quant import BMQuant
 import layers
 from tqdm import tqdm
@@ -142,11 +143,13 @@ def main():
     BMPrune.set_optim_for_pruning(optimizer)
 
     # for quantization
-    # BMQuant.quantize(gpt, config)
+    BMQuant.quantize(gpt, config)
 
     # if args.moe:
     #     from moe import BMMoE
     #     BMMoE.moefy(model, args.num_expert, args.topk, checkpoint=args.moe_ckpt)
+
+    Trainer.forward = BMMoE.get_hidden(gpt, config, Trainer.forward)
 
     bmt.synchronize()
 
@@ -194,6 +197,9 @@ def main():
 
         outputs = Trainer.forward(
             gpt, enc_input, enc_length, targets, loss_func)
+
+        if config.get('MoEfication'):
+            torch.save(outputs[-1], 'hiddens/' + '{}_{}'.format(iteration, bmt.rank()))
 
         loss = outputs[0]
         global_loss = bmt.sum_loss(loss).item()
