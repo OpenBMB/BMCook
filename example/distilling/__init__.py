@@ -1,3 +1,5 @@
+import types
+from numpy import record
 import torch
 from torch import nn
 import bmtrain as bmt
@@ -75,28 +77,47 @@ class BMDistill:
         assert distill_config['ce_scale'] + distill_config['mse_hidn_scale'] + distill_config['mse_att_scale'] > 0, 'At least one of the distillation loss should be non-zero.'
 
         if distill_config['mse_hidn_scale'] > 0:
-            # change forward function
-            pass
+            select_keys = set()
+            for k, v in student.named_modules():
+                if k in distill_config['mse_hidn_module']:
+                    select_keys.add(k)
+                    v.forward_old = v.forward
 
-            # cls.hidden_map = HiddenMap(teacher.dim_model, student.dim_model)
-            # bmt.init_parameters(cls.hidden_map)
-            # bmt.synchronize()
+                    pos = distill_config['mse_hidn_module'].index(k)
+
+                    def _forward(module_self, x):
+                        bmt.inspect.record_tensor(x, distill_config['mse_hidn_module'][pos]+'_student')
+                        return module_self.forward_old(x)
+                    v.forward = types.MethodType(_forward, v)
+            for k, v in teacher.named_modules():
+                if k in distill_config['mse_hidn_module']:
+                    select_keys.add(k)
+                    v.forward_old = v.forward
+
+                    pos = distill_config['mse_hidn_module'].index(k)
+
+                    def _forward(module_self, x):
+                        bmt.inspect.record_tensor(x, distill_config['mse_hidn_module'][pos]+'_teacher')
+                        return module_self.forward_old(x)
+                    v.forward = types.MethodType(_forward, v)
+            bmt.print_rank('Selected modules for hidden state MSE: {}'.format(select_keys))                        
 
         def forward(model, dec_input, dec_length, targets, loss_func):
-            outputs = foward_fn(
-                model, dec_input, dec_length, targets, loss_func)
+            with bmt.inspect.inspect_tensor() as inspector:
+                outputs = foward_fn(
+                    model, dec_input, dec_length, targets, loss_func)
+
+                outputs_t = teacher(dec_input, dec_length, return_logits=True)
+
+            records = {}
+            for record in inspector._summary:
+                records[record['name']] = record['tensor']
+
             loss = outputs[0]
             model_outputs = outputs[1]
-            logits_s = model_outputs[0]
+            logits_s = model_outputs
 
-            # hidden_s = model_outputs[1]
-            # att_scores_s = model_outputs[2]
-
-            outputs_t = teacher(dec_input, dec_length, return_logits=True)
             logits_t = outputs_t.detach()
-
-            # hidden_t = outputs_t[1]
-            # att_scores_t = outputs_t[2]
 
             # Compute loss and d_loss
             d_loss = 0.0
@@ -105,12 +126,17 @@ class BMDistill:
                 prob_t = F.softmax(logits_t / temp, dim=-1)
                 log_prob_s = F.log_softmax(logits_s / temp, dim=-1)
                 d_loss += -(prob_t * log_prob_s).sum(dim=1).mean() * distill_config['ce_scale']
-
-                bmt.print_rank(prob_t, log_prob_s)
-                exit()
-
-            # MSE loss on all hidden states
-            # if mse_hidden_states:
+        
+            # MSE loss 
+            if distill_config['mse_hidn_scale'] > 0:
+                for module_name in distill_config['mse_hidn_module']:
+                    student_t = records[module_name+'_student']
+                    teacher_t = records[module_name+'_teacher'].detach()
+                    cur_loss = (student_t - teacher_t).pow(2).mean() * distill_config['mse_hidn_scale']
+                    d_loss += cur_loss
+                    print(cur_loss)
+            
+            exit()
             #     cls.hidden_map.to(dec_input.device)
             #     ratio = len(hidden_t) // len(hidden_s)
             #     fit_target = [hidden_t[i]
@@ -120,6 +146,8 @@ class BMDistill:
             #         # Map hidden states from student to teacher
             #         h_s = cls.hidden_map(h_s)
             #         d_loss += F.mse_loss(h_s, h_t)
+
+            exit()
 
             # MSE loss on attention scores
             # if mse_att:

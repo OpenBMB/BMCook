@@ -89,7 +89,7 @@ class Trainer:
 
 
 def main():
-    bmt.init_distributed()
+    bmt.init_distributed(seed=1)
 
     # args = parse_args()
     # save_dir = Path(args.save_dir)
@@ -100,10 +100,14 @@ def main():
     # model = get_model(args.model, args.init_std)
     # bmt.init_parameters(model)
 
-    gpt = GPT2.from_pretrained("gpt2-base")
+    gpt_config = GPT2Config.from_pretrained("gpt2-base")
+    # gpt_config.dropout_p = 0
+
+    gpt = GPT2.from_pretrained("gpt2-base", config=gpt_config)
+    teacher = GPT2.from_pretrained("gpt2-base", config=gpt_config)
 
     config = ConfigParser('/home/zhangzhengyan/BMCook/example/configs/test.json')
-    Trainer.forward = BMDistill.set_forward(gpt, gpt, Trainer.forward, config)
+    Trainer.forward = BMDistill.set_forward(gpt, teacher, Trainer.forward, config)
 
     # Distillation
     # if args.use_kd:
@@ -209,6 +213,8 @@ def main():
     #     exit()
 
     for iteration in range(1000):
+        gpt.eval()
+        teacher.eval()
         optimizer.zero_grad()
 
         outputs = Trainer.forward(

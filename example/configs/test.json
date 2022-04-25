@@ -3,6 +3,6 @@
         "ce_scale": 1,
 
         "mse_hidn_scale": 1,
-        "mse_hidn_module": ["abcd"]
+        "mse_hidn_module": ["encoder.output_layernorm"]
     }
 }
