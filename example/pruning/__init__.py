@@ -73,6 +73,10 @@ class BMPrune:
         :param func: Function for computing the pruning mask.
         :param checkpoint: Path to save/load the pruning mask.
         '''
+        prune_config = config.get("pruning")
+        if not prune_config["is_pruning"]:
+            return
+
         assert (cls._model is None), "BMPrune.compute_mask() can only be called once."
         cls._model = model
 
@@ -80,7 +84,7 @@ class BMPrune:
         storaged_masks = None
         storaged_masks_ = {}
 
-        prune_config = config.get("pruning")
+        
         checkpoint = prune_config['pruning_mask_path'] if 'pruning_mask_path' in prune_config else None
         if prune_config['mask_method'] == 'm4n2_1d':
             func = m4n2_1d

@@ -17,12 +17,17 @@ class BMQuant:
     '''
 
     @classmethod
-    def quantize(cls, model):
+    def quantize(cls, model, config):
         '''
         Recursively change the linear transformations in the model to quantized version. Current implementation only supports GPT-J. To customize the quantization for other models, you can override this method. In the future, we will support customization by additional configuration files instead of hard coding.
 
         :param model: Model to quantize.
         '''
+
+        quant_config = config.get('quantization')
+        if not quant_config['is_quant']:
+            return
+
         for _, module in model.named_modules():
             if isinstance(module, model_center.layer.Linear):
                 module.forward = types.MethodType(forward_in8, module)

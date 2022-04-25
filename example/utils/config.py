@@ -20,7 +20,7 @@ default_values =  { "distillation": {
   },
 
   "quantization": {
-    "is_pruning": False,
+    "is_quant": False,
     "quantized_module": ['[placehold]'],
   },
 
