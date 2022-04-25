@@ -1,3 +1,7 @@
+import types
+import model_center
+import math
+import cpm_kernels.torch as ct
 
 class BMQuant:
     '''
@@ -19,8 +23,18 @@ class BMQuant:
 
         :param model: Model to quantize.
         '''
-        # Will implement more generally in the next version to support arbitrary models
-        for layer_idx in range(len(model.dec_layers)):
-            layer = model.dec_layers[layer_idx]
-            layer._module.ff.int8 = True
-            layer._module.self_attention.int8 = True
+        for _, module in model.named_modules():
+            if isinstance(module, model_center.layer.Linear):
+                module.forward = types.MethodType(forward_in8, module)
+
+def forward_in8(module_self, x):
+    if module_self.length_scale and module_self.length_scale_before:
+        x = x / math.sqrt(module_self.dim_in)
+    x = x.transpose(1, 2)
+    x = ct.bmm(module_self.weight.unsqueeze(0), False, x, False, int8=True)
+    x = x.transpose(1, 2)
+    if module_self.length_scale and not module_self.length_scale_before:
+        x = x / math.sqrt(module_self.dim_in)
+    if module_self.bias is not None:
+        x = x + module_self.bias
+    return x
