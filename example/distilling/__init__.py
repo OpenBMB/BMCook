@@ -5,27 +5,7 @@ from torch import nn
 import bmtrain as bmt
 import torch.nn.functional as F
 import cpm_kernels.torch as ct
-
-
-class HiddenMap(bmt.DistributedModule):
-    def __init__(self, dim_from, dim_to, dtype=torch.half, 
-                 init_std=0.02):
-        super().__init__()
-
-        self.dtype = dtype
-
-        init_method = bmt.ParameterInitializer(
-            nn.init.normal_, mean=0.0, std=init_std)
-        self.map = bmt.DistributedParameter(
-            torch.empty(dim_to, dim_from, dtype=dtype), 
-            init_method=init_method)
-    
-    def forward(self, x):
-        map = self.map
-        # Map hidden states from student to teacher
-        # (1#batch, dim_to, dim_from) @ (batch, dim_from, seq_len) = (batch, dim_to, seq_len)
-        x = ct.bmm(map.unsqueeze(0), False, x, False, int8=self.int8)
-        return x
+import model_center
 
 
 class BMDistill:
@@ -77,36 +57,14 @@ class BMDistill:
         assert distill_config['ce_scale'] + distill_config['mse_hidn_scale'] + distill_config['mse_att_scale'] > 0, 'At least one of the distillation loss should be non-zero.'
 
         if distill_config['mse_hidn_scale'] > 0:
-            select_keys = set()
-            for k, v in student.named_modules():
-                if k in distill_config['mse_hidn_module']:
-                    select_keys.add(k)
-                    v.forward_old = v.forward
-
-                    pos = distill_config['mse_hidn_module'].index(k)
-
-                    def _forward(module_self, x):
-                        bmt.inspect.record_tensor(x, distill_config['mse_hidn_module'][pos]+'_student')
-                        return module_self.forward_old(x)
-                    v.forward = types.MethodType(_forward, v)
-            for k, v in teacher.named_modules():
-                if k in distill_config['mse_hidn_module']:
-                    select_keys.add(k)
-                    v.forward_old = v.forward
-
-                    pos = distill_config['mse_hidn_module'].index(k)
-
-                    def _forward(module_self, x):
-                        bmt.inspect.record_tensor(x, distill_config['mse_hidn_module'][pos]+'_teacher')
-                        return module_self.forward_old(x)
-                    v.forward = types.MethodType(_forward, v)
-            bmt.print_rank('Selected modules for hidden state MSE: {}'.format(select_keys))                        
+            s_module_map, t_module_map = get_module_map(distill_config['mse_hidn_module'])
+            update_forward(student, teacher, s_module_map, t_module_map)
 
         def forward(model, dec_input, dec_length, targets, loss_func):
+
             with bmt.inspect.inspect_tensor() as inspector:
                 outputs = foward_fn(
                     model, dec_input, dec_length, targets, loss_func)
-
                 outputs_t = teacher(dec_input, dec_length, return_logits=True)
 
             records = {}
@@ -129,41 +87,93 @@ class BMDistill:
         
             # MSE loss 
             if distill_config['mse_hidn_scale'] > 0:
-                for module_name in distill_config['mse_hidn_module']:
+                for module_name in s_module_map:
+                    t_module_name = s_module_map[module_name]['t']['name']
                     student_t = records[module_name+'_student']
-                    teacher_t = records[module_name+'_teacher'].detach()
+                    teacher_t = records[t_module_name+'_teacher'].detach()
+
+                    if distill_config['mse_hidn_proj']:
+                        if 'mapping' not in s_module_map[module_name]:
+                            t_dim = teacher_t.size(-1)
+                            s_dim = student_t.size(-1)
+                            # May be different on different devices
+                            
+                            s_module_map[module_name]['mapping'] = model_center.layer.Linear(t_dim, s_dim, init_std=0.02)
+                            bmt.init_parameters(s_module_map[module_name]['mapping'])
+                            s_module_map[module_name]['mapping'].to(teacher_t.device)
+                            bmt.synchronize()
+                        
+                        teacher_t = s_module_map[module_name]['mapping'](teacher_t)
+                        
                     cur_loss = (student_t - teacher_t).pow(2).mean() * distill_config['mse_hidn_scale']
                     d_loss += cur_loss
-                    print(cur_loss)
             
-            exit()
-            #     cls.hidden_map.to(dec_input.device)
-            #     ratio = len(hidden_t) // len(hidden_s)
-            #     fit_target = [hidden_t[i]
-            #         for i in range(ratio - 1, len(hidden_t), ratio)]
-            #     for h_s, h_t in zip(hidden_s, fit_target):
-            #         h_t = h_t.detach()
-            #         # Map hidden states from student to teacher
-            #         h_s = cls.hidden_map(h_s)
-            #         d_loss += F.mse_loss(h_s, h_t)
-
-            exit()
-
-            # MSE loss on attention scores
-            # if mse_att:
-            #     ratio = len(hidden_t) // len(hidden_s)
-            #     fit_target = [att_scores_t[i]
-            #         for i in range(ratio - 1, len(att_scores_t), ratio)]
-            #     for att_s, att_t in zip(att_scores_s, fit_target):
-            #         att_t = att_t.detach()
-            #         att_t = att_t[att_t != -torch.inf]
-            #         att_s = att_s[att_s != -torch.inf]
-            #         d_loss += F.mse_loss(att_s, att_t)
-
             loss = loss + d_loss
+            # loss = d_loss
 
             # update loss & append distillation loss
             outputs[0] = loss
             outputs = outputs + [d_loss, ]
             return outputs
         return forward
+
+def get_module_info(info):
+    name = info.split(']')[1]
+    x_type = info.split(']')[0][1:]
+    if x_type in ['post', 'pre']:
+        return {"name": name, "type": x_type}
+    else:
+        raise ValueError('Unknown module type: {}'.format(x_type))
+
+def get_module_map(module_list):
+    s_module_map = {}
+    t_module_map = {}
+    for pair in module_list:
+        s_module, t_module = pair.split(':')
+        s_module = get_module_info(s_module)
+        t_module = get_module_info(t_module)
+        s_module_map[s_module['name']] = {'s': s_module, 't': t_module}
+        t_module_map[t_module['name']] = s_module_map[s_module['name']]
+    return s_module_map, t_module_map
+
+def update_forward(student, teacher, s_module_map, t_module_map):
+
+    select_keys = set()
+    for k, v in student.named_modules():
+        if k in s_module_map:
+            select_keys.add(k)
+            v.forward_old = v.forward
+            v.inspect_name = k+'_student'
+            
+            if s_module_map[k]['s']['type'] == 'pre':
+                def _forward(module_self, x):
+                    bmt.inspect.record_tensor(x, module_self.inspect_name)
+                    return module_self.forward_old(x)
+            
+            elif s_module_map[k]['s']['type'] == 'post':
+                def _forward(module_self, x):
+                    x = module_self.forward_old(x)
+                    bmt.inspect.record_tensor(x, module_self.inspect_name)
+                    return x
+            
+            v.forward = types.MethodType(_forward, v)
+
+    for k, v in teacher.named_modules():
+        if k in t_module_map:
+            select_keys.add(k)
+            v.forward_old = v.forward
+            v.inspect_name = k+'_teacher'
+
+            if t_module_map[k]['t']['type'] == 'pre':
+                def _forward(module_self, x):
+                    bmt.inspect.record_tensor(x, module_self.inspect_name)
+                    return module_self.forward_old(x)
+
+            elif t_module_map[k]['t']['type'] == 'post':
+                def _forward(module_self, x):
+                    x = module_self.forward_old(x)
+                    bmt.inspect.record_tensor(x, module_self.inspect_name)
+                    return x
+            
+            v.forward = types.MethodType(_forward, v)
+    bmt.print_rank('Selected modules for hidden state MSE: {}'.format(select_keys))                        

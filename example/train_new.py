@@ -213,19 +213,21 @@ def main():
     #     exit()
 
     for iteration in range(1000):
-        gpt.eval()
+        # gpt.eval()
         teacher.eval()
         optimizer.zero_grad()
 
         outputs = Trainer.forward(
             gpt, enc_input, enc_length, targets, loss_func)
 
-        loss = optimizer.loss_scale(outputs[0])
+        loss = outputs[0]
+        global_loss = bmt.sum_loss(loss).item()
+        loss = optimizer.loss_scale(loss)
 
         loss.backward()
         bmt.optim_step(optimizer, lr_scheduler)
 
-        bmt.print_rank("Iteration:", iteration, "Loss:", loss.item())
+        bmt.print_rank("Iteration:", iteration, "Loss:", global_loss)
         
 
 
