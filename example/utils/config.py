@@ -21,7 +21,7 @@ default_values =  { "distillation": {
 
   "quantization": {
     "is_quant": False,
-    "quantized_module": ['[placehold]'],
+    "quantized_module": [],
   },
 
   "MoEfication": {

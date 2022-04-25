@@ -28,8 +28,11 @@ class BMQuant:
         if not quant_config['is_quant']:
             return
 
-        for _, module in model.named_modules():
+        for name, module in model.named_modules():
             if isinstance(module, model_center.layer.Linear):
+                if len(quant_config["quantized_module"]) != 0:
+                    if not any([pattern in name for pattern in quant_config["quantized_module"]]):
+                        continue
                 module.forward = types.MethodType(forward_in8, module)
 
 def forward_in8(module_self, x):
