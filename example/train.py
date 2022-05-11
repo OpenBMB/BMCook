@@ -1,4 +1,6 @@
 import json
+from example import BMMoE
+from quant import BMQuant
 import torch
 import random
 import bmtrain as bmt
@@ -70,16 +72,15 @@ class Trainer:
                 batch = []
 
     @staticmethod
-    def forward(model, dec_input, dec_length, targets, loss_func, 
-                output_hidden_states=False):
+    def forward(model, dec_input, dec_length, targets, loss_func):
         outputs = model(
-            dec_input, dec_length, output_hidden_states=output_hidden_states)
-        logits = outputs[0]
+            dec_input, dec_length, return_logits=True)
+        logits = outputs
         batch, seq_len, vocab_out_size = logits.size()
 
         loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
 
-        return (loss,) + outputs
+        return [loss, logits]
 
 
 def get_model(model_name: str, init_std: float) -> torch.nn.Module:
@@ -151,7 +152,15 @@ def get_model(model_name: str, init_std: float) -> torch.nn.Module:
     else:
         raise ValueError("Invalid model name")
 
+from model_center.model import GPT2Config, GPT2
 
+config_map = {
+    'gpt2-base': GPT2Config
+}
+
+model_map = {
+    'gpt2-base': GPT2
+}
 
 def main():
     bmt.init_distributed()
@@ -162,57 +171,11 @@ def main():
     os.makedirs(ckpt_dir, exist_ok=True)
     json.dump(vars(args), open(save_dir / 'train_args.json', 'w'), indent=2)
 
-    model = get_model(args.model, args.init_std)
-    bmt.init_parameters(model)
-    
-    if args.load:
-        bmt.load(model, args.load)
+    model_config = config_map[args.model].from_pretrained(args.model)
+    model = model_map[args.model].from_pretrained(args.model, config=model_config)
+    # teacher model has the same config as the student model
+    teacher = model_map[args.model].from_pretrained(args.model, config=model_config)
 
-    if args.sprune:
-        assert args.original_model
-        teacher = GPTJ(
-            num_dec=28,
-            dim_model=4096, num_heads=16, dim_head=256, dim_ff=16384,
-            vocab_size=50400,
-            init_std=args.init_std,
-            position_bias_num_buckets=32, position_bias_max_distance=128,
-            eps=1e-6, int8=False, dtype=torch.half
-        )
-        bmt.load(teacher, "/data/home/scv0540/zzy/gpt-j/bm-gpt.pt")
-        BMDistill.init_student(model, teacher.state_dict())
-        del teacher
-
-    # Distillation
-    if args.use_kd:
-        #assert args.model == "gpt-j", "Currently only support KD with GPT-J"
-        teacher = GPTJ(
-            num_dec=28,
-            dim_model=4096, num_heads=16, dim_head=256, dim_ff=16384,
-            vocab_size=50400,
-            init_std=args.init_std,
-            position_bias_num_buckets=32, position_bias_max_distance=128,
-            eps=1e-6, int8=False, dtype=torch.half
-        )
-        bmt.init_parameters(teacher)
-        bmt.load(teacher, args.load_teacher)
-
-        Trainer.forward = BMDistill.set_forward(
-            model,
-            teacher,
-            Trainer.forward,
-            output_kd_loss=True,
-            temp=args.kd_temp,
-            kd_loss_scale=args.kd_loss_scale,
-            ce_logits=args.kd_ce_logits,
-            mse_last_hidden=args.kd_mse_last_hidden,
-            mse_hidden_states=args.kd_mse_hidn,
-            mse_att=args.kd_mse_att,
-            mse_emb=args.kd_mse_emb,
-        )
-        teacher.eval()
-
-    #print_inspect(model, "*")
-    #bmt.print_rank("Model mem\n", torch.cuda.memory_summary())
     bmt.synchronize()
 
     # data
@@ -227,21 +190,30 @@ def main():
     optimizer = bmt.optim.AdamOptimizer(model.parameters(), scale=2**20)
     lr_scheduler = bmt.lr_scheduler.Noam(optimizer, start_lr=args.start_lr, warmup_iter=2000, end_iter=100000)
 
-    # for pruning
-    if args.use_pruning:
-        BMPrune.compute_mask(model, m4n2_2d_greedy, checkpoint=args.pruning_mask_path)
-        BMPrune.set_optim_for_pruning(optimizer)
+    # bmcook config
+    from utils.config import ConfigParser
+    config = ConfigParser('configs/test.json')
 
-    if args.moe:
-        from moe import BMMoE
-        BMMoE.moefy(model, args.num_expert, args.topk, checkpoint=args.moe_ckpt)
+    # for distillation
+    Trainer.forward = BMDistill.set_forward(model, teacher, Trainer.forward, config)
+
+    # for pruning
+    BMPrune.compute_mask(model, config)
+    BMPrune.set_optim_for_pruning(optimizer)
+
+    # for quantization
+    BMQuant.quantize(model, config)
+
+    # for moefication
+    Trainer.forward = BMMoE.get_hidden(model, config, Trainer.forward)
 
     bmt.synchronize()
+    
     average_time = 0
     average_time_shift = 0.9
 
     dataset = Dataset(
-        MMapIndexedDataset("/data/home/scv0540/zzy/openwebtxt/openwebtext_text_document"),
+        MMapIndexedDataset("openwebtxt/openwebtext_text_document"),
         dec_len
     )
 
@@ -251,7 +223,7 @@ def main():
     if args.eval:
         eval_losses = []
 
-    if args.save_hidden:
+    if config.get('MoEfication')['is_moefy']:
         os.makedirs(save_dir / 'hiddens', exist_ok=True)
         model.eval()
 
@@ -260,25 +232,27 @@ def main():
             if iteration == 100:
                 break
 
-            with bmt.inspect.inspect_tensor() as inspector:
+            dec_input = data["ctx"].int()
+            dec_length = data["len_ctx"].int()
+            dec_mask = torch.arange(dec_len)[None, :].repeat(batch_size, 1) < dec_length[:, None]
+            targets = torch.where(dec_mask, data["target"].long(), torch.scalar_tensor(-100, dtype=torch.long))
 
-                dec_input = data["ctx"].int()
-                dec_length = data["len_ctx"].int()
-                dec_mask = torch.arange(dec_len)[None, :].repeat(batch_size, 1) < dec_length[:, None]
-                targets = torch.where(dec_mask, data["target"].long(), torch.scalar_tensor(-100, dtype=torch.long))
-
-                targets = targets.cuda()
-                dec_input = dec_input.cuda()
-                dec_length = dec_length.cuda()
-                
-                with torch.no_grad():
-                    loss, logits, _, _ = Trainer.forward(model, dec_input, dec_length, targets, loss_func)
+            targets = targets.cuda()
+            dec_input = dec_input.cuda()
+            dec_length = dec_length.cuda()
             
-            tensors = [x['tensor'] for x in inspector._summary if 'ff_x' in x['name']]
+            with torch.no_grad():
+                outputs = Trainer.forward(model, dec_input, dec_length, targets, loss_func)
+            
+            torch.save(outputs[-1], 'hiddens/' + '{}_{}'.format(iteration, bmt.rank()))
                
-            torch.save(tensors, save_dir / 'hiddens' / '{}_{}'.format(iteration, bmt.rank()) )
             bmt.print_rank("Iteration:", iteration)
         exit()
+
+    do_distill = True
+    distill_config = config.get('distillation')
+    if distill_config['ce_scale'] + distill_config['mse_hidn_scale'] + distill_config['mse_att_scale'] == 0:
+        do_distill = False
 
     for epoch in range(3):
         
@@ -309,17 +283,16 @@ def main():
             dec_input = dec_input.cuda()
             dec_length = dec_length.cuda()
 
-            if args.use_kd:
-                loss, logits, kd_loss = Trainer.forward(
-                    model, dec_input, dec_length, targets, loss_func)
-                global_kd_loss = bmt.sum_loss(kd_loss).item()
-                global_loss = bmt.sum_loss(loss).item() - global_kd_loss
-            else:
-                #loss, logits = Trainer.forward(model, dec_input, dec_length, targets, loss_func)
-                loss, logits, _, _ = Trainer.forward(model, dec_input, dec_length, targets, loss_func)
-                global_loss = bmt.sum_loss(loss).item()
+            outputs = Trainer.forward(model, dec_input, dec_length, targets, loss_func)
 
+            loss = outputs[0]
+            global_loss = bmt.sum_loss(loss).item()
             loss = optimizer.loss_scale(loss)
+
+            if do_distill:
+                distill_loss = bmt.sum_loss(outputs[-1]).item()
+            else:
+                distill_loss = 0
 
             if iteration % 1000 == 0:
                 print_inspect(model, "*")
@@ -342,8 +315,8 @@ def main():
                     bmt.print_rank(
                         "| Iter: {:6d} | loss: {:.4f} | kd_loss: {:.4f} | lr: {:.4e}, scale: {:10.4f} | time: {:.4f}".format(
                             iteration,
-                            global_loss,
-                            global_kd_loss,
+                            global_loss-distill_loss,
+                            distill_loss,
                             lr_scheduler.current_lr,
                             int(optimizer.scale),
                             average_time / (1 - pow(average_time_shift, iteration + 1))
