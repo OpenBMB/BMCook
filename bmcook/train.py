@@ -235,7 +235,7 @@ def main():
                     )
                 )
             
-            if iteration % args.save_interval == 0 and not args.eval: 
+            if iteration % args.save_interval == 0: 
                 ckpt_file = Path(args.save_dir, 'checkpoints', f'ckpt-{iteration}.pt')
                 bmt.save(model, ckpt_file) 
 
