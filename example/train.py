@@ -1,5 +1,6 @@
 import json
-from example import BMMoE
+import types
+from moe import BMMoE
 from quant import BMQuant
 import torch
 import random
@@ -194,6 +195,28 @@ def main():
     from utils.config import ConfigParser
     config = ConfigParser('configs/test.json')
 
+    # remove checkpointing
+    for _, v in model.named_modules():
+
+        if isinstance(v, bmt.TransformerBlockList):
+
+            def new_func(list_self, hidden_states, *args):
+                for i in range(len(list_self._modules)):
+                    hidden_states = list_self._modules[str(i)](hidden_states, *args)
+                return hidden_states
+
+            v.forward = types.MethodType(new_func, v)
+
+            for k in v._modules.keys():
+                state_dict = v._modules[k].state_dict()
+                cnt = 0
+                for kk, vv in v._modules[k]._module.named_modules():
+                    if kk+'.weight' in state_dict:
+                        vv.weight.data = state_dict[kk+'.weight'].clone().cuda()
+                    if kk+'.bias' in state_dict:
+                        vv.bias.data = state_dict[kk+'.bias'].clone().cuda()
+                v._modules[k] = v._modules[k]._module
+    
     # for distillation
     Trainer.forward = BMDistill.set_forward(model, teacher, Trainer.forward, config)
 
@@ -213,7 +236,7 @@ def main():
     average_time_shift = 0.9
 
     dataset = Dataset(
-        MMapIndexedDataset("openwebtxt/openwebtext_text_document"),
+        MMapIndexedDataset("openwebtxt/openwebtxt/openwebtext_text_document"),
         dec_len
     )
 
