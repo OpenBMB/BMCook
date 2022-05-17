@@ -9,7 +9,7 @@ import time
 from data import MMapIndexedDataset, Dataset
 from pruning import BMPrune
 from distilling import BMDistill
-from arguments import parse_args
+from utils.arguments import parse_args
 from pathlib import Path
 import os
 import json
@@ -186,6 +186,9 @@ def main():
     distill_config = config.get('distillation')
     if distill_config['ce_scale'] + distill_config['mse_hidn_scale'] + distill_config['mse_att_scale'] == 0:
         do_distill = False
+
+    model.train()
+    teacher.eval()
 
     for epoch in range(3):
         
