@@ -14,7 +14,7 @@ class BMMoE:
     def get_hidden(model, config, forward_fn):
         moe_config = config.get('MoEfication')
         if not moe_config['is_moefy']:
-            return
+            return forward_fn
 
         modules = get_modified_modules(model, moe_config['first_FFN_module'])
 

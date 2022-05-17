@@ -24,6 +24,14 @@ class BMQuant:
         :param model: Model to quantize.
         '''
 
+        # fix cpm_kernel
+        ct.gemm.GEMMInt8._backward = ct.gemm.GEMMInt8.backward
+        def new_func(ctx, grad_f):
+            if not grad_f.is_contiguous():
+                grad_f = grad_f.contiguous()
+            return ct.gemm.GEMMInt8._backward(ctx, grad_f)
+        ct.gemm.GEMMInt8.backward = new_func
+
         quant_config = config.get('quantization')
         if not quant_config['is_quant']:
             return
