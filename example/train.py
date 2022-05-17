@@ -5,23 +5,14 @@ from quant import BMQuant
 import torch
 import random
 import bmtrain as bmt
-import layers
-from tqdm import tqdm
 import time
 from data import MMapIndexedDataset, Dataset
-import numpy as np
-import pickle as pkl
-from pruning import BMPrune, m4n2_2d_greedy
+from pruning import BMPrune
 from distilling import BMDistill
 from arguments import parse_args
 from pathlib import Path
 import os
 import json
-from models import GPT, GPTJ
-
-import os
-from arguments import parse_args
-from pathlib import Path
 
 def print_inspect(model, name):
     bmt.print_rank(
@@ -83,76 +74,6 @@ class Trainer:
 
         return [loss, logits]
 
-
-def get_model(model_name: str, init_std: float) -> torch.nn.Module:
-    if model_name == "gpt-j":
-        return GPTJ(
-            num_dec=14,
-            dim_model=4096, num_heads=16, dim_head=256, dim_ff=16384,
-            vocab_size=50400,
-            init_std=init_std,
-            position_bias_num_buckets=32, position_bias_max_distance=128,
-            eps=1e-6, int8=False, dtype=torch.half
-        )
-    elif model_name == "gpt-j-int8":
-        return GPTJ(
-            num_dec=14,
-            dim_model=4096, num_heads=16, dim_head=256, dim_ff=16384,
-            vocab_size=50400,
-            init_std=init_std,
-            position_bias_num_buckets=32, position_bias_max_distance=128,
-            eps=1e-6, int8=True, dtype=torch.half
-        )
-    elif model_name == "gpt-j-full":
-        return GPTJ(
-            num_dec=28,
-            dim_model=4096, num_heads=16, dim_head=256, dim_ff=16384,
-            vocab_size=50400,
-            init_std=init_std,
-            position_bias_num_buckets=32, position_bias_max_distance=128,
-            eps=1e-6, int8=False, dtype=torch.half
-        )
-    elif model_name == "gpt-j-full-relu":
-        return GPTJ(
-            num_dec=28,
-            dim_model=4096, num_heads=16, dim_head=256, dim_ff=16384,
-            vocab_size=50400,
-            init_std=init_std,
-            position_bias_num_buckets=32, position_bias_max_distance=128,
-            eps=1e-6, int8=False, dtype=torch.half,
-            act_func='relu'
-        )
-    elif model_name == "gpt-j-full-relu-int8":
-        return GPTJ(
-            num_dec=28,
-            dim_model=4096, num_heads=16, dim_head=256, dim_ff=16384,
-            vocab_size=50400,
-            init_std=init_std,
-            position_bias_num_buckets=32, position_bias_max_distance=128,
-            eps=1e-6, int8=True, dtype=torch.half,
-            act_func='relu'
-        )
-    elif model_name == "gpt-j-full-int8":
-        return GPTJ(
-            num_dec=28,
-            dim_model=4096, num_heads=16, dim_head=256, dim_ff=16384,
-            vocab_size=50400,
-            init_std=init_std,
-            position_bias_num_buckets=32, position_bias_max_distance=128,
-            eps=1e-6, int8=True, dtype=torch.half
-        )
-    elif model_name == "gpt-relu":
-        return GPT(
-            num_dec=12,
-            dim_model=768, num_heads=12, dim_head=64, dim_ff=2048,
-            vocab_size=50400,
-            init_std=init_std,
-            position_bias_num_buckets=32, position_bias_max_distance=128,
-            eps=1e-6, int8=False, dtype=torch.half,
-        )
-    else:
-        raise ValueError("Invalid model name")
-
 from model_center.model import GPT2Config, GPT2
 
 config_map = {
@@ -180,12 +101,8 @@ def main():
     bmt.synchronize()
 
     # data
-    if args.eval:
-        batch_size = 1
-        dec_len = 256
-    else:
-        batch_size = 8
-        dec_len = 512
+    batch_size = 8
+    dec_len = 512
 
     loss_func = torch.nn.CrossEntropyLoss(ignore_index=-100)
     optimizer = bmt.optim.AdamOptimizer(model.parameters(), scale=2**20)
@@ -209,7 +126,6 @@ def main():
 
             for k in v._modules.keys():
                 state_dict = v._modules[k].state_dict()
-                cnt = 0
                 for kk, vv in v._modules[k]._module.named_modules():
                     if kk+'.weight' in state_dict:
                         vv.weight.data = state_dict[kk+'.weight'].clone().cuda()
@@ -236,15 +152,9 @@ def main():
     average_time_shift = 0.9
 
     dataset = Dataset(
-        MMapIndexedDataset("openwebtxt/openwebtxt/openwebtext_text_document"),
+        MMapIndexedDataset(args.data_path),
         dec_len
     )
-
-    sparsity_log_interval = 100
-    start_record_relu_distr_iter = None
-
-    if args.eval:
-        eval_losses = []
 
     if config.get('MoEfication')['is_moefy']:
         os.makedirs(save_dir / 'hiddens', exist_ok=True)
@@ -279,23 +189,10 @@ def main():
 
     for epoch in range(3):
         
-        if args.eval:
-            model.eval()
-        else:
-            model.train()
-
         for iteration, data in enumerate(Trainer.batch_iter(dataset, batch_size, bmt.rank(), bmt.world_size())):
-
-            if epoch == 0 and args.resuming_step != 0 and iteration < args.resuming_step:
-                continue
-
-            if args.eval and iteration < 320000:
-                continue
 
             st = time.time()
             optimizer.zero_grad()
-
-            # with bmt.inspect.inspect_tensor() as inspector:
 
             dec_input = data["ctx"].int()
             dec_length = data["len_ctx"].int()
@@ -319,66 +216,28 @@ def main():
 
             if iteration % 1000 == 0:
                 print_inspect(model, "*")
-            # bmt.print_rank(bmt.inspect.format_summary(inspector.get_summary()))
             
-            if args.eval:
-                eval_losses.append(global_loss)
-                if iteration == 321599:
-                    bmt.print_rank(f"Average Loss: {np.mean(eval_losses):.4f}")
-                    exit()
-            else:
-                loss.backward()
-                bmt.optim_step(optimizer, lr_scheduler)
+            loss.backward()
+            bmt.optim_step(optimizer, lr_scheduler)
             
 
             if iteration % args.log_interval == 0:
                 iteration_time = time.time() - st
                 average_time = average_time * average_time_shift + (1 - average_time_shift) * iteration_time
-                if args.use_kd:
-                    bmt.print_rank(
-                        "| Iter: {:6d} | loss: {:.4f} | kd_loss: {:.4f} | lr: {:.4e}, scale: {:10.4f} | time: {:.4f}".format(
-                            iteration,
-                            global_loss-distill_loss,
-                            distill_loss,
-                            lr_scheduler.current_lr,
-                            int(optimizer.scale),
-                            average_time / (1 - pow(average_time_shift, iteration + 1))
-                        )
+                bmt.print_rank(
+                    "| Iter: {:6d} | loss: {:.4f} | kd_loss: {:.4f} | lr: {:.4e}, scale: {:10.4f} | time: {:.4f}".format(
+                        iteration,
+                        global_loss-distill_loss,
+                        distill_loss,
+                        lr_scheduler.current_lr,
+                        int(optimizer.scale),
+                        average_time / (1 - pow(average_time_shift, iteration + 1))
                     )
-                else:
-                    bmt.print_rank(
-                        "| Iter: {:6d} | loss: {:.4f} | lr: {:.4e}, scale: {:10.4f} | time: {:.4f}".format(
-                            iteration,
-                            global_loss,
-                            lr_scheduler.current_lr, 
-                            int(optimizer.scale), 
-                            average_time / (1 - pow(average_time_shift, iteration + 1))
-                        )
-                    ) 
+                )
+            
             if iteration % args.save_interval == 0 and not args.eval: 
                 ckpt_file = Path(args.save_dir, 'checkpoints', f'ckpt-{iteration}.pt')
                 bmt.save(model, ckpt_file) 
-            if args.model == "gpt-relu":
-                if (iteration + 1) % sparsity_log_interval == 0:
-                    # sparsity
-                    sparsity = model.get_sparsity()
-                    mean_sparsity = sum(sparsity) / len(sparsity)
-                    bmt.print_rank(f"sparsity: {sparsity}, mean: {mean_sparsity}")
-                    model.reset_sparsity()
-
-                    # Dumping ReLU output distribution
-                    model.start_recording_relu_distr()
-                    start_record_relu_distr_iter = iteration
-
-                if start_record_relu_distr_iter is not None and iteration - start_record_relu_distr_iter == 4:
-                    relu_distr = model.stop_recording_relu_distr()
-                    relu_distr_dir = Path(args.save_dir, 'relu_distr')
-                    relu_distr_file = relu_distr_dir / f'{iteration}.pkl'
-                    os.makedirs(relu_distr_dir, exist_ok=True)
-                    bmt.print_rank(f"Dumping to file: {relu_distr_file}")
-                    pkl.dump(relu_distr, open(relu_distr_file, "wb"))
-
-                    start_record_relu_distr_iter = None
 
     ckpt_file = Path(args.save_dir, 'checkpoint.pt') 
     bmt.save(model, ckpt_file) 

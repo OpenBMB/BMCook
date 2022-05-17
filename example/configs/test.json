@@ -9,17 +9,17 @@
 
     "pruning": {
         "is_pruning": false,
-        "pruning_mask_path": "/home/zhangzhengyan/BMCook/example/prune_example.bin",
+        "pruning_mask_path": "/home/zhangzhengyan//data/BMCook/example/prune_example.bin",
         "pruned_module": ["ffn.ffn.w_in.w.weight", "ffn.ffn.w_out.weight", "input_embedding"],
         "mask_method": "m4n2_1d"
     },
 
     "quantization": {
-        "is_quant": false
+        "is_quant": true
     },
 
     "MoEfication": {
-        "is_moefy": true,
+        "is_moefy": false,
         "first_FFN_module": ["ffn.layernorm_before_ffn"]
     }
 }
