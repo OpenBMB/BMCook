@@ -27,6 +27,7 @@
 
 ## What's New
 
+- 2022/5/17 Support PLMs in [model-center](https://github.com/OpenBMB/ModelCenter). Please check [this branch](https://github.com/OpenBMB/BMCook/tree/new-config). More examples and documentation are coming soon.
 - 2022/3/29 (**BMCook 0.1.0**) Now we publicly release the first version of BMCook.
 
 <div id="overview"></div>
