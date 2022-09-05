@@ -5,6 +5,8 @@ import bmtrain as bmt
 from bmtrain.block_layer import storage_type_cuda, round_up
 from .prune_func import m4n2_1d, m4n2_2d_greedy
 import os
+from ..utils.config import ConfigParser
+from .sprune import L0_Module_coarse, L0_Module_fine
 
 def get_trivial_mask(p):
     return torch.ones_like(p)
@@ -72,6 +74,7 @@ class BMPrune:
     _model = None
     _masks = None
     _optimizer = None
+    _sprune_module = None
 
     @classmethod
     def compute_mask(cls, model, config):
@@ -99,6 +102,26 @@ class BMPrune:
             func = m4n2_1d
         elif prune_config['mask_method'] == 'm4n2_2d':
             func = m4n2_2d_greedy
+        elif prune_config['mask_method'] == 'coarse-grained':
+            sprune_config = ConfigParser('config/l0_pruning.json').get('coarse-grained')
+            if not sprune_config['train_mask']:
+                mask = torch.load(sprune_config['coarse_mask'])
+                return False, mask
+            else:
+                sprune_module = L0_Module_coarse(model, sprune_config)
+                cls._optim_and_scheduler = sprune_module.create_sprune_optimizer()
+                cls._sprune_module = sprune_module
+                return True, None
+        elif prune_config['mask_method'] == 'fine-grained':
+            sprune_config = ConfigParser('/bjzhyai03/cpm_live_compress/config/l0_pruning.json').get('fine-grained')
+            if not sprune_config['train_mask']:
+                mask = torch.load(sprune_config['fine_mask'])
+                return False, mask
+            else:
+                sprune_module = L0_Module_fine(sprune_config)
+                cls._optim_and_scheduler = sprune_module.create_sprune_optimizer()
+                cls._sprune_module = sprune_module
+                return True, None
         else:
             raise ValueError("Unknown mask method: {}".format(prune_config['mask_method']))
 
