@@ -103,7 +103,7 @@ class BMPrune:
         elif prune_config['mask_method'] == 'm4n2_2d':
             func = m4n2_2d_greedy
         elif prune_config['mask_method'] == 'coarse-grained':
-            sprune_config = ConfigParser('config/l0_pruning.json').get('coarse-grained')
+            sprune_config = ConfigParser('l0_pruning.json').get('coarse-grained')
             if not sprune_config['train_mask']:
                 mask = torch.load(sprune_config['coarse_mask'])
                 return False, mask
@@ -113,7 +113,7 @@ class BMPrune:
                 cls._sprune_module = sprune_module
                 return True, None
         elif prune_config['mask_method'] == 'fine-grained':
-            sprune_config = ConfigParser('/bjzhyai03/cpm_live_compress/config/l0_pruning.json').get('fine-grained')
+            sprune_config = ConfigParser('l0_pruning.json').get('fine-grained')
             if not sprune_config['train_mask']:
                 mask = torch.load(sprune_config['fine_mask'])
                 return False, mask
