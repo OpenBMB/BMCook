@@ -53,7 +53,7 @@ class L0_Module(nn.Module):
 
 class L0_Module_coarse(L0_Module):
     '''
-    This L0_Module is for layer mask training
+    This L0_Module_coarse is for layer mask training
     '''
     def __init__(self, 
                 model : bmt.CheckpointBlock,
@@ -160,7 +160,7 @@ class L0_Module_coarse(L0_Module):
 
 class L0_Module_fine(L0_Module):
     '''
-    This L0_Module_cofi is for heads/dimff mask training given fixed layer mask
+    This L0_Module_fine is for heads/dimff mask training given fixed layer mask
     '''
     def __init__(self, 
                 prune_config,
