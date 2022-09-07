@@ -5,6 +5,8 @@ import bmtrain as bmt
 from bmtrain.block_layer import storage_type_cuda, round_up
 from .prune_func import m4n2_1d, m4n2_2d_greedy
 import os
+from ..utils.config import ConfigParser
+from .sprune import L0_Module_coarse, L0_Module_fine
 
 def get_trivial_mask(p):
     return torch.ones_like(p)
@@ -48,7 +50,16 @@ def mask_storage(ordered_masks, storage_params, storage_info):
             to_offset_end = offset_end + param_st - storage_st
 
             # copy to buffer
-            storaged_mask[storage_type].storage()[to_offset_st: to_offset_end].copy_(contiguous_param.storage()[offset_st: offset_end])
+            #storaged_mask[storage_type].storage()[to_offset_st: to_offset_end].copy_(contiguous_param.storage()[offset_st: offset_end])
+            d_dtype = storaged_mask[storage_type].dtype
+            d_device = storaged_mask[storage_type].device
+            contiguous_param = contiguous_param.to(device=d_device)
+            
+            #if config['rank'] == 0:
+            #    print(config['rank'], d_device, contiguous_param.device)
+            assert d_device == contiguous_param.device, "The devices does not match, which is not allowed when duplicating storage."
+            torch.tensor([], dtype=d_dtype, device=d_device).set_(storaged_mask[storage_type].storage(), to_offset_st, (to_offset_end - to_offset_st,))[:] = \
+                        torch.tensor([], dtype=d_dtype, device=d_device).set_(contiguous_param.storage(), offset_st, (offset_end - offset_st,))[:]
             del contiguous_param
     return storaged_mask
 
@@ -63,6 +74,7 @@ class BMPrune:
     _model = None
     _masks = None
     _optimizer = None
+    _sprune_module = None
 
     @classmethod
     def compute_mask(cls, model, config):
@@ -90,6 +102,26 @@ class BMPrune:
             func = m4n2_1d
         elif prune_config['mask_method'] == 'm4n2_2d':
             func = m4n2_2d_greedy
+        elif prune_config['mask_method'] == 'coarse-grained':
+            sprune_config = ConfigParser('l0_pruning.json').get('coarse-grained')
+            if not sprune_config['train_mask']:
+                mask = torch.load(sprune_config['coarse_mask'])
+                return False, mask
+            else:
+                sprune_module = L0_Module_coarse(model, sprune_config)
+                cls._optim_and_scheduler = sprune_module.create_sprune_optimizer()
+                cls._sprune_module = sprune_module
+                return True, None
+        elif prune_config['mask_method'] == 'fine-grained':
+            sprune_config = ConfigParser('l0_pruning.json').get('fine-grained')
+            if not sprune_config['train_mask']:
+                mask = torch.load(sprune_config['heads_mask'])
+                return False, mask
+            else:
+                sprune_module = L0_Module_fine(sprune_config)
+                cls._optim_and_scheduler = sprune_module.create_sprune_optimizer()
+                cls._sprune_module = sprune_module
+                return True, None
         else:
             raise ValueError("Unknown mask method: {}".format(prune_config['mask_method']))
 
