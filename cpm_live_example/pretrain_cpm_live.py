@@ -224,7 +224,10 @@ def pretrain(args, tokenizer, model, optimizer, lr_scheduler, dataset):
     # bmcook
     from bmcook.utils.config import ConfigParser
     config = ConfigParser('config/bmcook.json')
-    train_mask, zs = BMPrune.compute_mask(model, config)
+    if config.get('pruning')['is_pruning'] == False:
+        train_mask, zs = False, None
+    else:
+        train_mask, zs = BMPrune.compute_mask(model, config)
     if train_mask:
         sprune_module = BMPrune._sprune_module
         (sp_optimizer, lag_optimizer) = BMPrune._optim_and_scheduler 
@@ -248,11 +251,9 @@ def pretrain(args, tokenizer, model, optimizer, lr_scheduler, dataset):
             global_token_pass = latest_log["token pass"]
 
     dataloader = BatchPacker(dataset, args.max_length, args.batch_size)
-    #if os.path.exists(os.path.join(args.save, args.save_name+("-%d.data.pkl" % start_step))):
-    if os.path.exists(os.path.join("results/sprune/1B", "cpm_live_checkpoint_1B"+("-%d.data.pkl" % start_step))):
+    if os.path.exists(os.path.join(args.save, args.save_name+("-%d.data.pkl" % start_step))):
         # load dataloader states if exists
-        dataloader_states = pickle.load(open(os.path.join("results/sprune/1B", "cpm_live_checkpoint_1B"+("-%d.data.pkl" % start_step)), "rb"))
-        #dataloader_states = pickle.load(open(os.path.join(args.save, args.save_name+("-%d.data.pkl" % start_step)), "rb"))
+        dataloader_states = pickle.load(open(os.path.join(args.save, args.save_name+("-%d.data.pkl" % start_step)), "rb"))
         dataloader.load_state(dataloader_states[bmt.rank()])
 
     for iteration, data in enumerate(dataloader):
