@@ -236,7 +236,7 @@ class L0_Module_fine(L0_Module):
             target = target_num_heads
         
         elif self.prune_mode == 'ffn':
-            target_dimff = 700
+            target_dimff = self.target_dimff
             dimff_score = 1 - self.cdf_qz(torch.tensor(0.), self.dimff_loga).cuda()
             expected_num_dimff = torch.sum(dimff_score, -1)
             loss_dimff = torch.sum((target_dimff - expected_num_dimff) / self.dim_ff)

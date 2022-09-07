@@ -115,7 +115,7 @@ class BMPrune:
         elif prune_config['mask_method'] == 'fine-grained':
             sprune_config = ConfigParser('l0_pruning.json').get('fine-grained')
             if not sprune_config['train_mask']:
-                mask = torch.load(sprune_config['fine_mask'])
+                mask = torch.load(sprune_config['heads_mask'])
                 return False, mask
             else:
                 sprune_module = L0_Module_fine(sprune_config)
