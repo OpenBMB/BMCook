@@ -19,9 +19,10 @@ class BMQuant:
     @classmethod
     def quantize(cls, model, config):
         '''
-        Recursively change the linear transformations in the model to quantized version. Current implementation only supports GPT-J. To customize the quantization for other models, you can override this method. In the future, we will support customization by additional configuration files instead of hard coding.
+        Practitioners can turn on quantization by `is_quant` in the config, which will replace all linear layers with quantized linear layers. BMCook provides the simulation of 8-bit quantization.
 
         :param model: Model to quantize.
+        :param config: Configuration of the quantization.
         '''
 
         # fix cpm_kernel
