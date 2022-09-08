@@ -12,8 +12,8 @@
 #
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../../example'))
-autodoc_mock_imports = ["cpm_kernels", "bmtrain", "numpy", "tensorboard", "torch"]
+sys.path.insert(0, os.path.abspath('../../bmcook'))
+autodoc_mock_imports = ["cpm_kernels", "bmtrain", "numpy", "tensorboard", "torch", 'model_center']
 
 
 # -- Project information -----------------------------------------------------
