@@ -14,59 +14,35 @@ class BMDistill:
     '''
 
     @classmethod
-    def init_student(cls, student, teacher_sd):
-        '''
-
-        Initialize the student model based on the parameters of the teacher model, i.e, copy every 2 layer from teacher to student.
-
-        :param student: Student model.
-        :param teacher_sd: State dictionary of the teacher model.
-
-        '''
-        # teacher_sd = teacher.state_dict()
-        student_sd = {}
-        for k, weights in teacher_sd.items():
-            if 'dec_layers' not in k:
-                student_sd[k] = weights
-            else:
-                layer = int(k.split('.')[1])
-                if layer % 2 == 0:
-                    new_layer = str(layer // 2)
-                    new_k = k.replace(str(layer), new_layer)
-                    student_sd[new_k] = weights
-        student.load_state_dict(student_sd)
-
-    @classmethod
     def set_forward(cls, student, teacher, foward_fn, config):
         '''
         Modify the forward function of the student model to compute additional knowledge distillation loss.
 
-        `student` and `teacher` should return (logits, hidden_states, att_scores).
-        logits: (batch_size, vocab_size)
-        hidden_states: (batch_size, dec_len, hidden_size)
-        att_scores: (batch_size, dec_len, enc_len)
+        `foward_fn` should have the following arguments: `foward_fn(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)`. These arguments are general for existing Transformers. For decoder-only model, `enc_input` and `enc_length` can be set to None. For encoder-only model, `dec_input` and `dec_length` can be set to None. Similarly, `student` and `teacher` models also have the following arguments: `model(enc_input, enc_length, dec_input, dec_length)`.
 
         :param student: Student model.
         :param teacher: Teacher model.
         :param foward_fn: Forward function of the student model.
         :param config: ConfigParser object.
-        :return: Modified forward function, whose return values are 1. (model, dec_input, dec_length, targets) -> loss, logits, kd_loss 2. (model, dec_input, dec_length, targets) -> loss, logits. Returns 1 if `output_kd_loss` is True, else return 2.
+        :return: Modified forward function, whose return values are the original return values of `foward_fn` and additional knowledge distillation loss.
         '''
 
         distill_config = config.get('distillation')
         if distill_config['ce_scale'] + distill_config['mse_hidn_scale'] + distill_config['mse_att_scale'] == 0:
+            # if all scales are zero, return the original forward function
             return foward_fn
 
         if distill_config['mse_hidn_scale'] > 0:
+            # if mse_hidn_scale is not zero, get the module mapping from the teacher model to the student model
             s_module_map, t_module_map = get_module_map(distill_config['mse_hidn_module'])
             update_forward(student, teacher, s_module_map, t_module_map)
 
-        def forward(model, dec_input, dec_length, targets, loss_func):
+        def forward(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func):
 
             with bmt.inspect.inspect_tensor() as inspector:
                 outputs = foward_fn(
-                    model, dec_input, dec_length, targets, loss_func)
-                outputs_t = teacher(dec_input, dec_length, return_logits=True)
+                    model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)
+                outputs_t = teacher(enc_input, enc_length, dec_input, dec_length)
 
             records = {}
             for record in inspector._summary:
@@ -110,7 +86,6 @@ class BMDistill:
                     d_loss += cur_loss
             
             loss = loss + d_loss
-            # loss = d_loss
 
             # update loss & append distillation loss
             outputs[0] = loss
@@ -119,6 +94,11 @@ class BMDistill:
         return forward
 
 def get_module_info(info):
+    '''
+    Parse module info. For example, "[post]encoder.output_layernorm" is parsed to {'name': 'encoder.output_layernorm', 'type': 'post'}, which means the output of the 'encoder.output_layernorm' module is used for distillation. Meanwhile, "[pre]encoder.output_layernorm" is parsed to {'name': 'encoder.output_layernorm', 'type': 'pre'}, which means the input of the 'encoder.output_layernorm' module is used for distillation.
+
+    :param info: Module info.
+    '''
     name = info.split(']')[1]
     x_type = info.split(']')[0][1:]
     if x_type in ['post', 'pre']:
@@ -127,6 +107,12 @@ def get_module_info(info):
         raise ValueError('Unknown module type: {}'.format(x_type))
 
 def get_module_map(module_list):
+    '''
+    Get the module mapping from the teacher model to the student model. For example, "[post]encoder.output_layernorm:[post]encoder.output_layernorm" means that the output of the 'encoder.output_layernorm' module in the teacher model is corresponding to the output of the 'encoder.output_layernorm' module in the student model. The first module name is from the student model, and the second module name is from the teacher model.
+
+    :param module_list: List of module info.
+    '''
+
     s_module_map = {}
     t_module_map = {}
     for pair in module_list:
@@ -138,6 +124,15 @@ def get_module_map(module_list):
     return s_module_map, t_module_map
 
 def update_forward(student, teacher, s_module_map, t_module_map):
+    '''
+    Update the forward function of target modules in the student and teacher models.
+
+    :param student: Student model.
+    :param teacher: Teacher model.
+    :param s_module_map: Module mapping from the student model to the teacher model.
+    :param t_module_map: Module mapping from the teacher model to the student model.
+
+    '''
 
     select_keys = set()
     for k, v in student.named_modules():

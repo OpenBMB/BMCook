@@ -64,9 +64,9 @@ class Trainer:
                 batch = []
 
     @staticmethod
-    def forward(model, dec_input, dec_length, targets, loss_func):
+    def forward(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func):
         outputs = model(
-            dec_input, dec_length, return_logits=True)
+            enc_input, enc_length, dec_input, dec_length, return_logits=True)
         logits = outputs
         batch, seq_len, vocab_out_size = logits.size()
 
@@ -97,6 +97,14 @@ def main():
     model = model_map[args.model].from_pretrained(args.model, config=model_config)
     # teacher model has the same config as the student model
     teacher = model_map[args.model].from_pretrained(args.model, config=model_config)
+
+    def new_forward(model_self, enc_input, enc_length, dec_input, dec_length, return_logits=False):
+        return model_self.forward_old(dec_input, dec_length, return_logits=return_logits)
+    
+    model.forward_old = model.forward
+    model.forward = types.MethodType(new_forward, model)
+    teacher.forward_old = teacher.forward
+    teacher.forward = types.MethodType(new_forward, teacher)
 
     bmt.synchronize()
 
@@ -206,7 +214,7 @@ def main():
             dec_input = dec_input.cuda()
             dec_length = dec_length.cuda()
 
-            outputs = Trainer.forward(model, dec_input, dec_length, targets, loss_func)
+            outputs = Trainer.forward(model, None, None, dec_input, dec_length, targets, loss_func)
 
             loss = outputs[0]
             global_loss = bmt.sum_loss(loss).item()

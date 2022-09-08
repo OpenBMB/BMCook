@@ -82,8 +82,7 @@ class BMPrune:
         Compute the pruning mask for each weight matrix and combine masks to match the parameters stored in the optimizer.
         
         :param model: Model to prune.
-        :param func: Function for computing the pruning mask.
-        :param checkpoint: Path to save/load the pruning mask.
+        :param config: Configuration of the pruning.
         '''
         prune_config = config.get("pruning")
         if not prune_config["is_pruning"]:
