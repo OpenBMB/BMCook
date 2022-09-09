@@ -1,15 +1,15 @@
 import json
 import types
-from moe import BMMoE
-from quant import BMQuant
+from bmcook.moe import BMMoE
+from bmcook.quant import BMQuant
 import torch
 import random
 import bmtrain as bmt
 import time
 from data import MMapIndexedDataset, Dataset
-from pruning import BMPrune
-from distilling import BMDistill
-from utils.arguments import parse_args
+from bmcook.pruning import BMPrune
+from bmcook.distilling import BMDistill
+from bmcook.utils.arguments import parse_args
 from pathlib import Path
 import os
 import json
@@ -117,8 +117,8 @@ def main():
     lr_scheduler = bmt.lr_scheduler.Noam(optimizer, start_lr=args.start_lr, warmup_iter=2000, end_iter=100000)
 
     # bmcook config
-    from utils.config import ConfigParser
-    config = ConfigParser('configs/test.json')
+    from bmcook.utils.config import ConfigParser
+    config = ConfigParser(args.cook_config)
 
     # remove checkpointing
     for _, v in model.named_modules():
