@@ -77,67 +77,53 @@ $ git clone git@github.com:OpenBMB/BMCook.git
 
 ## Quick Start
 
-The `example` folder provides example codes based on GPT-J (6B).
+The `gpt-example` folder provides example codes based on GPT2-Base.
 
 Quantization-aware training：
 
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-int8 \
-     --model gpt-j-full-int8 \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-int8 \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j.bin
+     --cook-config configs/gpt2-int8.json \
 ```
 
 Quantization-aware training with knowledge distillation：
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-int8-distill \
-     --model gpt-j-full-int8 \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-int8-kd \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j.bin \
-     --use-kd \
-     --kd-mse-last-hidden \
-     --kd-loss-scale 1 \
-     --load-teacher gpt-j.bin
+     --cook-config configs/gpt2-int8-kd.json \
 ```
 
 Model pruning：
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-prune \
-     --model gpt-j-full \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-prune \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j.bin \
-     --use-pruning \
-     --use-kd \
-     --kd-mse-last-hidden \
-     --kd-loss-scale 1 \
-     --load-teacher gpt-j.bin
+     --cook-config configs/gpt2-prune.json \
 ```
+In this case, we only prune the input embedding layer. You can include more modules by changing the `pruned_module` field in the config file.
 
 MoEfication (save the hidden states and then use the MoEfication toolkit)：
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-moe \
-     --model gpt-j-full-relu \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-moe \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j-relu.bin \
-     --save-hidden
+     --cook-config configs/gpt2-moe.json \
 ```
 
 Combine quantization, pruning and knowledge distillation：
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-int8-prune-distill \
-     --model gpt-j-full-int8 \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-combine \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j.bin \
-     --use-pruning \
-     --use-kd \
-     --kd-mse-last-hidden \
-     --kd-loss-scale 1 \
-     --load-teacher gpt-j.bin
+     --cook-config configs/gpt2-combine.json \
 ```
 
 ## Performances
@@ -164,10 +150,6 @@ D denotes knowledge distillation. P denotes pruning. Q denotes quantization. M d
 | [TextBrewer](https://github.com/airaria/TextBrewer)      |           -         | ✅             | ✅                      |         -          |
 | BMCook          | ✅                  | ✅             | ✅                      | ✅                 |
 
-## TODO
-
-In the next version, we will provide a one-line interface for the compression of arbitrary PLMs, which could further simplify the code. Stay tuned!
-
 ## Community
 We welcome everyone to contribute codes following our [contributing guidelines](https://github.com/OpenBMB/BMCook/blob/main/CONTRIBUTING.md).
 
@@ -184,4 +166,4 @@ The package is released under the [Apache 2.0](https://github.com/OpenBMB/BMCook
 
 ## Contributors
 
-We thank Zhengyan Zhang, Yingfa Chen, Guoyang Zeng, Jie Zhou, and Zhi Zheng for the contribution. More contributors are welcome!
+We thank Zhengyan Zhang, Baitao Gong, Yingfa Chen, Guoyang Zeng, Jie Zhou, and Zhi Zheng for the contribution. More contributors are welcome!

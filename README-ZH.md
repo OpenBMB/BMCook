@@ -74,67 +74,53 @@ $ git clone git@github.com:OpenBMB/BMCook.git
 
 ## 快速上手
 
-`example`文件夹提供了基于GPT-J（6B参数）的样例代码。
+`gpt-example`文件夹提供了基于GPT2-Base的样例代码。
 
 模型量化：
 
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-int8 \
-     --model gpt-j-full-int8 \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-int8 \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j.bin
+     --cook-config configs/gpt2-int8.json \
 ```
 
 在训练过程中加入模型蒸馏：
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-int8-distill \
-     --model gpt-j-full-int8 \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-int8-kd \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j.bin \
-     --use-kd \
-     --kd-mse-last-hidden \
-     --kd-loss-scale 1 \
-     --load-teacher gpt-j.bin
+     --cook-config configs/gpt2-int8-kd.json \
 ```
 
 模型剪枝：
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-prune \
-     --model gpt-j-full \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-prune \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j.bin \
-     --use-pruning \
-     --use-kd \
-     --kd-mse-last-hidden \
-     --kd-loss-scale 1 \
-     --load-teacher gpt-j.bin
+     --cook-config configs/gpt2-prune.json \
 ```
+该配置文件只对输入层进行了剪枝，你可以通过修改配置文件中的`prune_module`来引入更多模块。
 
 模型专家化（不需要训练，只需保存中间计算结果）：
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-moe \
-     --model gpt-j-full-relu \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-moe \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j-relu.bin \
-     --save-hidden
+     --cook-config configs/gpt2-moe.json \
 ```
 
 与此同时，不同的压缩方法可以任意组合，以下是量化、剪枝和蒸馏结合的样例代码：
 ```
-    torchrun --nnodes=1 --nproc_per_node=8 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
-     --save-dir results/gpt-j-int8-prune-distill \
-     --model gpt-j-full-int8 \
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir results/gpt2-combine \
+     --model gpt2-base \
      --start-lr 1e-4 \
-     --load gpt-j.bin \
-     --use-pruning \
-     --use-kd \
-     --kd-mse-last-hidden \
-     --kd-loss-scale 1 \
-     --load-teacher gpt-j.bin
+     --cook-config configs/gpt2-combine.json \
 ```
 
 ## 压缩效果

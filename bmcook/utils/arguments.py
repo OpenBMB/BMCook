@@ -8,6 +8,7 @@ def parse_args():
     p.add_argument('--save-interval', type=int, default=1000, help='Interval steps between checkpoints')
     p.add_argument('--start-lr', type=float, default=1e-4, help='Start learning rate')
     p.add_argument('--data-path', default='openwebtxt/openwebtxt/openwebtext_text_document', help='Path to dataset')
+    p.add_argument('--cook-config', type=str, help='Path to BMCook config file')
 
     return p.parse_args()
 
