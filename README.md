@@ -77,7 +77,7 @@ $ git clone git@github.com:OpenBMB/BMCook.git
 
 ## Quick Start
 
-The `example` folder provides example codes based on GPT2-Base.
+The `gpt-example` folder provides example codes based on GPT2-Base.
 
 Quantization-aware training：
 
