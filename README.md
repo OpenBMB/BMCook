@@ -164,10 +164,6 @@ D denotes knowledge distillation. P denotes pruning. Q denotes quantization. M d
 | [TextBrewer](https://github.com/airaria/TextBrewer)      |           -         | ✅             | ✅                      |         -          |
 | BMCook          | ✅                  | ✅             | ✅                      | ✅                 |
 
-## TODO
-
-In the next version, we will provide a one-line interface for the compression of arbitrary PLMs, which could further simplify the code. Stay tuned!
-
 ## Community
 We welcome everyone to contribute codes following our [contributing guidelines](https://github.com/OpenBMB/BMCook/blob/main/CONTRIBUTING.md).
 
@@ -184,4 +180,4 @@ The package is released under the [Apache 2.0](https://github.com/OpenBMB/BMCook
 
 ## Contributors
 
-We thank Zhengyan Zhang, Yingfa Chen, Guoyang Zeng, Jie Zhou, and Zhi Zheng for the contribution. More contributors are welcome!
+We thank Zhengyan Zhang, Baitao Gong, Yingfa Chen, Guoyang Zeng, Jie Zhou, and Zhi Zheng for the contribution. More contributors are welcome!
