@@ -27,7 +27,7 @@
 
 ## What's New
 
-- 2022/5/17 Support PLMs in [model-center](https://github.com/OpenBMB/ModelCenter). Please check [this branch](https://github.com/OpenBMB/BMCook/tree/new-config). More examples and documentation are coming soon.
+- 2022/5/17 Support PLMs in [model-center](https://github.com/OpenBMB/ModelCenter).
 - 2022/3/29 (**BMCook 0.1.0**) Now we publicly release the first version of BMCook.
 
 <div id="overview"></div>
@@ -77,6 +77,8 @@ $ git clone git@github.com:OpenBMB/BMCook.git
 <div id="quick-start"></div>
 
 ## Quick Start
+
+The `cpm_live_example` folder provides pruning example based on CPM-Live, please check [it](https://github.com/OpenBMB/BMCook/blob/main/cpm_live_example/README.md) for more details.
 
 The `gpt-example` folder provides example codes based on GPT2-Base.
 
