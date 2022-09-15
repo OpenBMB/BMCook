@@ -1,0 +1,19 @@
+{
+    "coarse-grained": {
+        "train_mask": false,
+        "coarse_mask": "results/sprune/2B_layer_mask.pt",
+        "target_sparsity": 0.67
+    },
+
+    "fine-grained": {
+        "train_mask": true,
+        "coarse_mask": "results/sprune/2B_layer_mask.pt",
+        "num_heads": 16,
+        "dim_ff": 700,
+        "target_num_heads": 4,
+        "target_dimff": 350,
+        "heads_mask": "results/sprune/300M_head_mask.pt",
+        "dimff_mask": "results/sprune/300M_dimff_mask.pt",
+        "prune_mode": "att"
+    }
+}
