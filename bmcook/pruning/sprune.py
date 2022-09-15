@@ -1,4 +1,3 @@
-from unittest import expectedFailure
 import torch
 import bmtrain as bmt
 import torch.nn as nn

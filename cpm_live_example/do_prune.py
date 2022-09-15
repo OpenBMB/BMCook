@@ -142,7 +142,7 @@ def layer_prune_2b():
 
 
 def head_dimff_prune_1b():
-    model = torch.load('results/sprune/1B_mask/cpm_live_checkpoint_1B_mask-22500.pt')
+    model = torch.load('results/sprune/300M_mask/cpm_live_checkpoint_300M_mask-83500.pt')
     
     att_zs = [1., 1., 1., 0., 1., 1., 1., 1., 1., 1., 0., 1., 1., 0., 0., 0., 1., 0.,
         1., 0., 1., 0., 0., 1., 1., 0., 0., 1., 0., 1., 1., 1., 0., 1., 0., 0., 1., 0., 0., 
@@ -151,7 +151,7 @@ def head_dimff_prune_1b():
         1., 0., 1., 0., 1., 0., 1., 0., 0., 1., 1., 0., 0., 1., 0., 0., 0., 0., 1., 1., 0., 
         1., 1., 0., 0., 0., 1., 1., 0., 1.]
     
-    head_ff_zs = torch.load('results/sprune/1B_mask.pt')
+    head_ff_zs = torch.load('results/sprune/300M_head_mask.pt')
     heads_z = head_ff_zs['heads_z']  # (25, 20)
     dimff_z = head_ff_zs['dimff_z']  # (21, 3735)
 
@@ -161,80 +161,76 @@ def head_dimff_prune_1b():
             if 'project_' in k:
                 if att_zs[index] == 0.:
                     print('ERROR!')
-                    model[k] = v[:2048, :]
                 else:
                     att_index = int(sum(att_zs[:index]))
                     heads_mask = heads_z[att_index]
-                    v = v.view(20, 128, 4096)
+                    v = v.view(16, 128, 4096)
                     tgt = []
                     for i, mask in enumerate(heads_mask):
                         if mask == 1.:
                             tgt.append(v[i])
                     v = torch.stack(tgt)
-                    assert v.size() == (16, 128, 4096)
-                    model[k] = v.view(2048, 4096)
+                    assert v.size() == (4, 128, 4096)
+                    model[k] = v.view(512, 4096)
             elif 'attention_out' in k:
                 if att_zs[index] == 0.:
                     print('ERROR!')
-                    model[k] = v[:, :2048]
                 else:
                     att_index = int(sum(att_zs[:index]))
                     heads_mask = heads_z[att_index]
-                    v = v.permute(1, 0).view(20, 128, 4096)
+                    v = v.permute(1, 0).view(16, 128, 4096)
                     tgt = []
                     for i, mask in enumerate(heads_mask):
                         if mask == 1.:
                             tgt.append(v[i])
                     v = torch.stack(tgt)
-                    assert v.size() == (16, 128, 4096)
-                    model[k] = v.view(2048, 4096).permute(1, 0)
+                    assert v.size() == (4, 128, 4096)
+                    model[k] = v.view(512, 4096).permute(1, 0)
             elif 'ffn.ffn.w_in' in k:
                 if ffn_zs[index] == 0.:
                     print('ERROR')
-                    model[k] = v[:3735, :]
                 else:
                     ffn_index = int(sum(ffn_zs[:index]))
                     dimff_mask = dimff_z[ffn_index]
-                    assert v.size() == (3735, 4096)
+                    assert v.size() == (700, 4096)
                     tgt = []
                     for i, mask in enumerate(dimff_mask):
                         if mask == 1.:
                             tgt.append(v[i])
                     v = torch.stack(tgt)
-                    assert v.size() == (700, 4096)
+                    assert v.size() == (350, 4096)
                     model[k] = v
             elif 'ffn.ffn.w_out' in k:
                 if ffn_zs[index] == 0.:
                     print('ERROR!')
-                    model[k] = v[:, :3735]
                 else:
                     ffn_index = int(sum(ffn_zs[:index]))
                     dimff_mask = dimff_z[ffn_index]
                     v = v.permute(1, 0)
-                    assert v.size() == (3735, 4096)
+                    assert v.size() == (700, 4096)
                     tgt = []
                     for i, mask in enumerate(dimff_mask):
                         if mask == 1.:
                             tgt.append(v[i])
                     v = torch.stack(tgt).permute(1, 0)
-                    assert v.size() == (4096, 700)
+                    assert v.size() == (4096, 350)
                     model[k] = v
         if 'position_bias.relative_attention_bias' in k:
             heads_mask = heads_z[0]
-            v = v.permute(1, 0).view(20, 1536)
+            v = v.permute(1, 0).view(16, 1536)
             tgt = []
             for i, mask in enumerate(heads_mask):
                 if mask == 1.:
                     tgt.append(v[i])
             v = torch.stack(tgt)
-            assert v.size() == (16, 1536)
+            assert v.size() == (4, 1536)
             model[k] = v.permute(1, 0)
 
     for k, v in model.items():
         if "attention_out" in k:
             print(k, v.size())
 
-    torch.save(model, 'results/sprune/1B_mask/cpm_live_checkpoint_1B_pruned.pt')
+    torch.save(model, 'results/sprune/300M_mask/cpm_live_checkpoint_300M_pruned.pt')
 
 
 if __name__ == "__main__":

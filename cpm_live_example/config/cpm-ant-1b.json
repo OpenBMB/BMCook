@@ -1,0 +1,17 @@
+{
+    "vocab_size": 30720, 
+    "dim_model": 4096, 
+    "dim_ff": 700, 
+    "num_layers": 48, 
+    "num_heads": 16, 
+    "dim_head": 128, 
+    "dropout_p": 0.0, 
+    "position_bias_num_buckets": 512, 
+    "position_bias_max_distance": 2048, 
+    "eps": 1e-06, 
+    "half": true,  
+    "prompt_types": 32, 
+    "prompt_length": 32, 
+    "segment_types": 32, 
+    "mask_modules": [[false, false], [false, true], [false, true], [true, true], [false, true], [false, false], [false, true], [false, false], [false, true], [false, false], [true, true], [false, false], [false, true], [true, true], [true, true], [true, true], [false, false], [true, false], [false, false], [true, true], [false, false], [true, true], [true, false], [false, true], [false, false], [true, true], [true, true], [false, false], [true, false], [false, true], [false, true], [false, false], [true, true], [false, true], [true, true], [true, true], [false, false], [true, false], [true, true], [false, false], [false, false], [true, true], [false, true], [true, true], [true, false], [true, false], [true, true], [true, false]]
+}
