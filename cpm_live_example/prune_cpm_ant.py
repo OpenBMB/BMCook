@@ -14,9 +14,6 @@ from cpm_live.models import CPMAnt, CPMAntConfig
 from cpm_live.tokenizers import CPMAntTokenizer
 from training_tasks.ant import CPMAntPretrainDataset
 
-import sys
-sys.path.append('..')
-sys.path.append('/bjzhyai03/zz/lost+found/ModelCenter')
 from bmcook.pruning import BMPrune
 
 def get_tokenizer(args):
