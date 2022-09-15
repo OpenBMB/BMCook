@@ -8,7 +8,7 @@ More general pruning toolkit will be released soon!
 
 
 ## Quick Start
-### run pruning script:
+### Run Puning Script:
 ```shell
 $ bash scripts/prune_cpm_ant.sh
 ```
