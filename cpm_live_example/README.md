@@ -18,7 +18,7 @@ You can switch to prune or not by setting "pruning" in config/bmcook.json as fol
 ```json
 "pruning": {
         "is_pruning": true,
-        "pruning_mask_path": "/yinxr/gongbt/BMCook/example/t5-mask-m4n2.bin",
+        "pruning_mask_path": "your unstructure mask path",
         "pruned_module": ["ffn.ffn.w_in.w.weight", 
                             "ffn.ffn.w_out.weight", 
                             "self_attention.project_q.weight",
@@ -64,7 +64,7 @@ The "train_mask" decides:
 
 The "prune_mode" decides:
 - att: train the head mask.
-- ffn: train the fim_ff mask. 
+- ffn: train the dim_ff mask. 
 
 If you train head mask first, you should provides the fixed mask in "heads_mask" when training fixed mask and vice versa. 
 

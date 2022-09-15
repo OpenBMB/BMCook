@@ -5,7 +5,9 @@ import bmtrain as bmt
 from bmtrain.block_layer import storage_type_cuda, round_up
 from .prune_func import m4n2_1d, m4n2_2d_greedy
 import os
-from ..utils.config import ConfigParser
+import sys
+sys.path.append('..')  # add path to make docs
+from bmcook.utils.config import ConfigParser
 from .sprune import L0_Module_coarse, L0_Module_fine
 
 def get_trivial_mask(p):
