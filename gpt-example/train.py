@@ -1,3 +1,8 @@
+import os
+import sys
+sys.path.insert(0, os.path.abspath('../'))
+
+
 import json
 import types
 from bmcook.moe import BMMoE
@@ -11,7 +16,6 @@ from bmcook.pruning import BMPrune
 from bmcook.distilling import BMDistill
 from bmcook.utils.arguments import parse_args
 from pathlib import Path
-import os
 import json
 
 def print_inspect(model, name):
@@ -183,9 +187,9 @@ def main():
             dec_length = dec_length.cuda()
             
             with torch.no_grad():
-                outputs = Trainer.forward(model, dec_input, dec_length, targets, loss_func)
+                outputs = Trainer.forward(model, None, None, dec_input, dec_length, targets, loss_func)
             
-            torch.save(outputs[-1], 'hiddens/' + '{}_{}'.format(iteration, bmt.rank()))
+            torch.save(outputs[-1], save_dir / 'hiddens' / '{}_{}'.format(iteration, bmt.rank()))
                
             bmt.print_rank("Iteration:", iteration)
         exit()

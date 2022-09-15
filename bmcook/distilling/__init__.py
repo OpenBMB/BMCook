@@ -42,7 +42,7 @@ class BMDistill:
             with bmt.inspect.inspect_tensor() as inspector:
                 outputs = foward_fn(
                     model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)
-                outputs_t = teacher(enc_input, enc_length, dec_input, dec_length)
+                outputs_t = teacher(enc_input, enc_length, dec_input, dec_length, return_logits=True)
 
             records = {}
             for record in inspector._summary:
@@ -52,12 +52,12 @@ class BMDistill:
             model_outputs = outputs[1]
             logits_s = model_outputs
 
-            logits_t = outputs_t.detach()
 
             # Compute loss and d_loss
             d_loss = 0.0
             if distill_config['ce_scale'] > 0:
                 temp = distill_config['ce_temp']
+                logits_t = outputs_t.detach()
                 prob_t = F.softmax(logits_t / temp, dim=-1)
                 log_prob_s = F.log_softmax(logits_s / temp, dim=-1)
                 d_loss += -(prob_t * log_prob_s).sum(dim=1).mean() * distill_config['ce_scale']
