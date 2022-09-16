@@ -25,6 +25,7 @@
 
 ## 最新动态
 
+- 2022/5/17 支持[model-center](https://github.com/OpenBMB/ModelCenter)中的预训练模型压缩。
 - 2022/3/20 (BMCook 0.1.0) 第一版BMCook发布了！
 
 <div id="overview"></div>
@@ -74,7 +75,10 @@ $ git clone git@github.com:OpenBMB/BMCook.git
 
 ## 快速上手
 
-`gpt-example`文件夹提供了基于GPT2-Base的样例代码。
+`cpm_live_example` 文件夹提供了 CPM-Live 结构化剪枝的样例，详见[介绍](https://github.com/OpenBMB/BMCook/blob/main/cpm_live_example/README.md).
+
+
+`gpt-example`文件夹提供了基于 Model Center 中 GPT2-Base 的样例代码。
 
 模型量化：
 
