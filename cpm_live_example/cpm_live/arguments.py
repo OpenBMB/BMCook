@@ -131,6 +131,12 @@ def add_training_args(parser: argparse.ArgumentParser):
         default=None,
         help="local rank passed from distributed launcher",
     )
+    group.add_argument(
+        "--data-bin-path",
+        type=str,
+        default=None,
+        help="path of the binary dataset"
+    )
 
     return parser
 

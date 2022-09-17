@@ -24,6 +24,7 @@ OPTS+=" --loss-scale 1048576"
 OPTS+=" --start-step 0"
 OPTS+=" --log-dir logs/tensorboard/cpm_live_48_4096/"
 OPTS+=" --load cpm_live_compress/ckpt/1B/cpm_live_checkpoint_1B_pruned.pt"
+OPTS+=" --data_bin_path /bjzhyai03/zz/task_data/data_bin_shuffle"
 
 CMD="torchrun --nnodes=${NNODES} --nproc_per_node=${GPUS_PER_NODE} --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=${MASTER_ADDR}:${MASTER_PORT} prune_cpm_ant.py ${OPTS}"
 

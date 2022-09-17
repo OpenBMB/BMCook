@@ -463,7 +463,7 @@ def main():
     args = initialize()
     tokenizer, model, optimizer, lr_scheduler = setup_model_and_optimizer(args)
     dataset = CPMAntPretrainDataset(
-        DistributedDataset("/bjzhyai03/zz/task_data/data_bin_shuffle", bmt.rank(), bmt.world_size()),
+        DistributedDataset(args.data_bin_path, bmt.rank(), bmt.world_size()),
         max_length=args.max_length - args.prompt_length,
         prompt_length=args.prompt_length,
         tokenizer=tokenizer,
