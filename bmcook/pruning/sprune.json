@@ -1,0 +1,21 @@
+{
+    "main":{
+        "criterion": "l0",
+        "fixed_mask_path": "",
+        "training_mask": ["dim_ff"],
+        "mask_method": "in_forward",
+        "mask_mode": "train_mask",
+        "training_mode": "sparsity",
+        "iterational": false
+    },
+
+    "training_mode":{
+        "sparsity": 0.67,
+        "dimension": 350
+    },
+    
+    "iterational":{
+        "interval": 100,
+        "ratio": 0.1
+    }
+}
