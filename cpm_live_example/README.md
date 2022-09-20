@@ -1,6 +1,6 @@
 # BMCook SPrune Guide for CPM-Ant Compression
 ## Overview
-BMCook Sprune is a main tool to compress CPM-Ant. The compression process is task-agnostic, in pre-training stage and shares the pre-training dataset. If you want to compress CPM-Ant for a specific downstream task, just prepare your task dataset in the way as CPM-Ant implements and follow the same compression process.
+BMCook Sprune is a main tool to compress CPM-Ant. The compression process is task-agnostic, in pre-training stage and shares the pre-training dataset. If you want to compress CPM-Ant for a specific downstream task, just prepare your task dataset in the way as [CPM-Ant](https://github.com/OpenBMB/CPM-Live/tree/master/cpm-live#4-feed-your-data) implements and follow the same compression process.
 
 BMCook Sprune now supports two pruning granularities: layer level and head/dim level. Generally, you can set the number of layers you want for layer level pruning, then set the num_heads or dim_ff to do head/dim level pruning.
 
