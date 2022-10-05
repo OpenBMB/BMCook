@@ -89,6 +89,12 @@ model_map = {
 }
 
 def main():
+
+    import subprocess
+    from packaging.version import parse as parse_version
+    result = subprocess.check_output('pip show model-center', shell=True)
+    version = parse_version(str(result).split('\\n')[1].split(' ')[-1])
+
     bmt.init_distributed()
 
     args = parse_args()
@@ -102,8 +108,23 @@ def main():
     # teacher model has the same config as the student model
     teacher = model_map[args.model].from_pretrained(args.model, config=model_config)
 
-    def new_forward(model_self, enc_input, enc_length, dec_input, dec_length, return_logits=False):
-        return model_self.forward_old(dec_input, dec_length, return_logits=return_logits)
+    if version <= parse_version('0.1.3'):
+        def new_forward(model_self, enc_input, enc_length, dec_input, dec_length, return_logits=False):
+            return model_self.forward_old(dec_input, dec_length, return_logits=return_logits)
+    else:
+        def forward(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func):
+            outputs = model(
+                enc_input, enc_length, dec_input, dec_length, output_logits=True)
+            logits = outputs.logits
+            batch, seq_len, vocab_out_size = logits.size()
+
+            loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
+
+            return [loss, logits]
+        Trainer.forward = forward
+
+        def new_forward(model_self, enc_input, enc_length, dec_input, dec_length, output_logits=False):
+            return model_self.forward_old(dec_input, dec_length, output_logits=output_logits)
     
     model.forward_old = model.forward
     model.forward = types.MethodType(new_forward, model)
@@ -146,6 +167,7 @@ def main():
                 v._modules[k] = v._modules[k]._module
     
     # for distillation
+    BMDistill.version = version <= parse_version('0.1.3')
     Trainer.forward = BMDistill.set_forward(model, teacher, Trainer.forward, config)
 
     # for pruning
