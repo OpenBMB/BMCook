@@ -5,3 +5,5 @@ You can generate the pre-training data as follows:
 ```
 
 Each line of the input file contains one document.
+
+To support the version check of `model-center`, please run `pip install packaging`.
