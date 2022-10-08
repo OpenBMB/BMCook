@@ -2,13 +2,12 @@ from collections import defaultdict
 import types
 import torch
 import bmtrain as bmt
+import os
+import json
 from bmtrain.block_layer import storage_type_cuda, round_up
 from .prune_func import m4n2_1d, m4n2_2d_greedy
-import os
-import sys
-sys.path.append('..')  # add path to make docs
-from bmcook.utils.config import ConfigParser
-from .sprune import L0_Module_coarse, L0_Module_fine
+from .sprune import SPruneEngine, SPrunePlugin
+
 
 def get_trivial_mask(p):
     return torch.ones_like(p)
@@ -103,26 +102,18 @@ class BMPrune:
             func = m4n2_1d
         elif prune_config['mask_method'] == 'm4n2_2d':
             func = m4n2_2d_greedy
-        elif prune_config['mask_method'] == 'coarse-grained':
-            sprune_config = ConfigParser('config/l0_pruning.json').get('coarse-grained')
-            if not sprune_config['train_mask']:
-                mask = torch.load(sprune_config['coarse_mask'])
-                return False, mask
-            else:
-                sprune_module = L0_Module_coarse(model, sprune_config)
-                cls._optim_and_scheduler = sprune_module.create_sprune_optimizer()
-                cls._sprune_module = sprune_module
-                return True, None
-        elif prune_config['mask_method'] == 'fine-grained':
-            sprune_config = ConfigParser('config/l0_pruning.json').get('fine-grained')
-            if not sprune_config['train_mask']:
-                mask = torch.load(sprune_config['heads_mask'])
-                return False, mask
-            else:
-                sprune_module = L0_Module_fine(sprune_config)
-                cls._optim_and_scheduler = sprune_module.create_sprune_optimizer()
-                cls._sprune_module = sprune_module
-                return True, None
+        elif prune_config['mask_method'] == 'structure':
+            with open('../bmcook/pruning/sprune/sprune.json', 'r') as file:
+                sprune_config = json.load(file)
+            plugin = SPrunePlugin(sprune_config, model)
+            cls.sprune_engine = SPruneEngine(model)
+            model.forward_old = model.forward
+            def forward_with_sprune(model_self, *args, **kwargs):
+                out = model_self.forward_old(*args, **kwargs)
+                cls.sprune_engine.update(plugin)
+                return out
+            model.forward = types.MethodType(forward_with_sprune, model)
+            return
         else:
             raise ValueError("Unknown mask method: {}".format(prune_config['mask_method']))
 
