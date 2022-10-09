@@ -1,5 +1,7 @@
 # Quick Start
 
+The target of BMCook is to provide a simple way to create a compression script for a pre-trained model. Specifically, if you have a pre-training script, you can introduce compression modules with a few lines of code. You don't need to change the code of model initialization, model loading, and training loop. Just add the following code before the training loop.
+
 ## Usage of Different Modules
 
 ### Configuration
@@ -37,6 +39,8 @@ You can use `BMQuant` to enable quantization-aware training as follows:
   BMQuant.quantize(model, config)
 ```
 
+It will replace all linear modules in the model with quantization-aware modules.
+
 ### Knowledge Distillation
 
 You can use `BMDistill` to enable knowledge distillation as follows:
@@ -62,6 +66,8 @@ Here is an example of the forward function.
       return (loss,) + outputs
 ```
 
+The modified forward function will append the distillation loss to outputs.
+
 ### Weight Pruning
 
 You can use `BMPrune` to enable pruning-aware training as follows:
@@ -71,6 +77,8 @@ You can use `BMPrune` to enable pruning-aware training as follows:
   BMPrune.set_optim_for_pruning(optimizer)
 ```
 
+Based on the pruning mask, `BMPrune` will modify the optimizer to ignore the gradients of pruned weights.
+
 ### MoEfication
 
 You can use `BMMoE` to get the hidden states for MoEfication:
@@ -79,7 +87,7 @@ You can use `BMMoE` to get the hidden states for MoEfication:
   BMMoE.get_hidden(model, config, Trainer.forward)
 ```
 
-For more details, please refer to the API documentation.
+Based on the hidden states, you can use MoEfication to get the corresponding MoE model. For more details, please refer to the API documentation.
 
 ## Examples Based on CPM-Live
 
