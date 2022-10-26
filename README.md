@@ -9,7 +9,7 @@
 
 
 <p align="center">
-  <a href="#overview">Overview</a> • <a href="#documentation">Documentation</a> • <a href="#install">Installation</a> • <a href="#quick-start">Quick Start</a> • <a href="./README-ZH.md" target="_blank">简体中文</a>
+  <a href="#overview">Overview</a> • <a href="#documentation">Documentation</a> • <a href="#install">Installation</a> •<a href="#usage">Usage</a> • <a href="#quick-start">Quick Start</a> • <a href="./README-ZH.md" target="_blank">简体中文</a>
 <br>
 </p>
 
@@ -67,8 +67,15 @@ $ python3 setup.py install
 
 Please refer to [the installation guide](https://bmtrain.readthedocs.io/en/latest/) of BMTrain for more details.
 
-Then, install BMCook.
+Then, install BMCook. 
 
+**From PyPI (Recommend)**
+
+```shell
+$ pip install bmcook
+```
+
+**From source**
 
 ```shell
 $ git clone git@github.com:OpenBMB/BMCook.git
@@ -76,19 +83,101 @@ cd BMCook
 python3 setup.py install
 ```
 
-or **From PYPI**
+<div id="usage"></div>
 
-```shell
-$ pip install bmcook
+## Usage
+
+### 1. Basic usage in your code.
+BMCook provides unified interface `CookTrainer`. BMCook will introduce distillation pruning and MoEfication, which may add some terms to model outputs. You can use it to manage your model, and these modifications.
+```python
+from bmcook import CookTrainer
+from bmcook.utils.config import ConfigParser
+
+#prepare your model, dataloader and optimizer...
+...
+
+# setting up your BMCook strategy
+CookTrainer.set_forward(cookconfig, model, optimizer, model_distill)
+
+# train
+for data in dataloader:
+    targets = ...
+    ...
+    outputs = CookTrainer.forward(model, loss_func, targets, *your_model_inputs, **your_model_kwinputs)
+
+    [loss, model_outputs, lag_loss, sparsity, distill_loss] = outputs
 ```
+the loss equals to the sum of model_loss, lag_loss and distill_loss. So if you wanna know the model performance, please minus them. Noticed that if sprune is not setted, the lag_loss and loss_func will be `None`, so do distilling.
+```python
+model_loss = loss - lag_loss - distill_loss # sprune and distilling both setted.
+model_loss = loss - distill_loss # only distilling used. 
+```
+
+### 2. How to run your code
+You can run your code as normal, but should state where your cookconfig is:
+```shell
+    torchrun --nnodes=1 --nproc_per_node=1 --rdzv_id=1 --rdzv_backend=c10d --rdzv_endpoint=localhost train.py \
+     --save-dir ... \
+     --model ... \
+     --start-lr ... \
+     --cook-config  ... \ # give your cook config path
+```
+
+### 3. How to define your BMCook config.
+You should give a json file to state your compress strategy.
+
+```json
+{ "distillation": {
+    "ce_scale": 0,
+    "ce_temp": 1,
+      
+    "mse_hidn_scale": 0,
+    "mse_hidn_module": ['[placehold]'],
+    "mse_hidn_proj": false,
+      
+    "mse_att_scale": 0,
+    "mse_att_module": ['[placehold]'],
+  },
+
+  "pruning": {
+    "is_pruning": false,
+    "pruning_mask_path": None,
+    "pruned_module": ['[placehold]'],
+    "mask_method": "m4n2_1d/m4n2_2d/sprune",
+    "sprune": {
+        "criterion": "l0",
+        "training_mask": ['[placehold]'],
+        "fixed_mask_path": "",
+        "mask_mode": "train_mask",
+        "target_sparsity": 0.5
+    }
+  },
+
+  "quantization": {
+    "is_quant": false,
+    "quantized_module": [],
+  },
+
+  "MoEfication": {
+    "is_moefy": false,
+    "first_FFN_module": ['[placehold]'],
+  }
+}
+```
+To notice:
+
+- `is_moefy`, `is_quant`, `ispruning` are switch parameters. If false, other parameters will be blocked. `mask_method` takes similar works. When `mask_method` is "m4n2_1d" or "m4n2_2d", it will execute unstructure pruning, but when is "sprune", the `sprune` field will be activated. For distillation, when the `ce_scale` or `mse_hidn_scale` is greater than 0, the corresponding distilling mode will be switched on.
+
+- It's not recommended to use MoE and Distilling simultaneously.
+
 
 <div id="quick-start"></div>
 
 ## Quick Start
 
-The `cpm_live_example` folder provides pruning example based on CPM-Live, please check [it](https://github.com/OpenBMB/BMCook/blob/main/cpm_live_example/README.md) for more details.
+The `examples` folder provides pruning example based on CPM-Live, GPT2-Base, T5-large, please check [examples](https://github.com/OpenBMB/BMCook/blob/main/examples/README.md) for more details.
 
-The `gpt-example` folder provides example codes based on GPT2-Base.
+Take GPT2 as example:
 
 Quantization-aware training：
 
