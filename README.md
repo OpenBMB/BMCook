@@ -67,11 +67,19 @@ $ python3 setup.py install
 
 Please refer to [the installation guide](https://bmtrain.readthedocs.io/en/latest/) of BMTrain for more details.
 
-Then, clone the repository.
+Then, install BMCook.
 
 
 ```shell
 $ git clone git@github.com:OpenBMB/BMCook.git
+cd BMCook
+python3 setup.py install
+```
+
+or **From PYPI**
+
+```shell
+$ pip install bmcook
 ```
 
 <div id="quick-start"></div>
