@@ -1,17 +1,18 @@
 import types
 import torch
-import bmtrain as bmt
-from bmtrain.global_var import config
 from torch import Tensor
 from torch.nn import Module
 from typing import List, Dict, Union, Optional, NewType
-from collections import OrderedDict
 
 SPlugin = NewType('Plugin', Dict[str, Optional[Union[int, Tensor]]])
 
-def set_pruning_transformer(module: Module, index: int, TRANSFORMER_MASK: List[SPlugin]):
+################################# utils for forward-inside pruning setup #################################
+def set_pruning_transformer(module: Module, index: int, TRANSFORMER_MASK: List[SPlugin], is_bmtCBlock: bool = True):
     module.index = index
-    module.forward_unprune = module._module.forward
+    if is_bmtCBlock:
+        module.forward_unprune = module._module.forward
+    else:
+        module.forward_unprune = module.forward
     def prune_forward(module_self, self_hidden_states, *args, **kwargs):
         index = module_self.index
         mask = TRANSFORMER_MASK[index]['mask']
@@ -19,7 +20,10 @@ def set_pruning_transformer(module: Module, index: int, TRANSFORMER_MASK: List[S
         if mask is not None:
             out = self_hidden_states + (out - self_hidden_states) * mask
         return out
-    module._module.forward = types.MethodType(prune_forward, module)
+    if is_bmtCBlock:
+        module._module.forward = types.MethodType(prune_forward, module)
+    else:
+        module.forward = types.MethodType(prune_forward, module)
 
 def set_pruning_att(module: Module, index: int, ATTENTION_MASK: List[SPlugin], NUM_HEADS_MASK: List[SPlugin], DIM_HEAD_MASK: List[SPlugin]):
     module.index = index
@@ -64,7 +68,7 @@ def set_pruning_linear_attention(module: Module, index: int, NUM_HEADS_MASK: Lis
     if in_out == 'in':
         def prune_forward(module_self, *args, **kwargs):
             index = module_self.index
-            num_heads, dim_head = NUM_HEADS_MASK[index]['param'], DIM_HEAD_MASK[index]['param']
+            num_heads, dim_head = NUM_HEADS_MASK[index]['dim'], DIM_HEAD_MASK[index]['dim']
             num_heads_mask, dim_head_mask = NUM_HEADS_MASK[index]['mask'], DIM_HEAD_MASK[index]['mask']
             out = module_self.forward_unprune(*args, **kwargs)  # (batch, len, num_heads*dim_head)
             if num_heads_mask is not None:
@@ -81,7 +85,7 @@ def set_pruning_linear_attention(module: Module, index: int, NUM_HEADS_MASK: Lis
     elif in_out == 'out':
         def prune_forward(module_self, x, *args, **kwargs):
             index = module_self.index
-            num_heads, dim_head = NUM_HEADS_MASK[index]['param'], DIM_HEAD_MASK[index]['param']
+            num_heads, dim_head = NUM_HEADS_MASK[index]['dim'], DIM_HEAD_MASK[index]['dim']
             num_heads_mask, dim_head_mask = NUM_HEADS_MASK[index]['mask'], DIM_HEAD_MASK[index]['mask']
             if num_heads_mask is not None:
                 old_size = x.size()  # (batch, len, num_heads * dim_head)
@@ -119,7 +123,12 @@ def set_pruning_linear_feedforward(module: Module, index: int, DIM_FF_MASK: List
     module.forward = types.MethodType(prune_forward, module)
 
 
+################################# utils for cross-granularity sparsity computaion #################################
 def get_params_from_block(info_dict: Dict[int, Dict[str, List]]):
+    r"""The calculation of sparsity.
+
+    It calculates the mask and params of TransformerBlock, in a bottom-up way. This can support the cross-grained pruning.
+    """
     res_exp, res_all = 0, 0
     for k in info_dict:
         modules = info_dict[k]['module']
@@ -134,47 +143,47 @@ def get_params_from_block(info_dict: Dict[int, Dict[str, List]]):
             num_heads_mask = scores[num_heads_index]
             dim_head_index = modules.index('dim_head')
             dim_head_mask = scores[dim_head_index]
-            att_param_exp = torch.sum(num_heads_mask) * torch.sum(dim_head_mask) * 4
+            att_param_exp = torch.sum(num_heads_mask, dtype=torch.float) * torch.sum(dim_head_mask) * 4
             att_param_all = num_heads_mask.size(0) * dim_head_mask.size(0) * 4
         elif 'num_heads' in modules:
             num_heads_index = modules.index('num_heads')
             num_heads_mask = scores[num_heads_index]
             param = params[num_heads_index]
-            att_param_exp = torch.sum(num_heads_mask) * param * 4
+            att_param_exp = torch.sum(num_heads_mask, dtype=torch.float) * param * 4
             att_param_all = num_heads_mask.size(0) * param * 4
         elif 'dim_head' in modules:
             dim_head_index = modules.index('dim_head')
             dim_head_mask = scores[dim_head_index]
             param = params[dim_head_index]
-            att_param_exp = torch.sum(dim_head_mask) * param * 4
+            att_param_exp = torch.sum(dim_head_mask, dtype=torch.float) * param * 4
             att_param_all = dim_head_mask.size(0) * param * 4
-
+        
         if 'cross_num_heads' in modules and 'cross_dim_head' in modules:
             cross_num_heads_index = modules.index('cross_num_heads')
             cross_num_heads_mask = scores[cross_num_heads_index]
             cross_dim_head_index = modules.index('cross_dim_head')
             cross_dim_head_mask = scores[cross_dim_head_index]
-            cross_att_param_exp = torch.sum(cross_num_heads_mask) * torch.sum(cross_dim_head_mask) * 4
+            cross_att_param_exp = torch.sum(cross_num_heads_mask, dtype=torch.float) * torch.sum(cross_dim_head_mask, dtype=torch.float) * 4
             cross_att_param_all = cross_num_heads_mask.size(0) * cross_dim_head_mask.size(0) * 4
         elif 'cross_num_heads' in modules:
             cross_num_heads_index = modules.index('cross_num_heads')
             cross_num_heads_mask = scores[cross_num_heads_index]
             param = params[cross_num_heads_index]
-            cross_att_param_exp = torch.sum(cross_num_heads_mask) * param * 4
+            cross_att_param_exp = torch.sum(cross_num_heads_mask, dtype=torch.float) * param * 4
             cross_att_param_all = cross_num_heads_mask.size(0) * param * 4
         elif 'cross_dim_head' in modules:
             cross_dim_head_index = modules.index('cross_dim_head')
             cross_dim_head_mask = scores[cross_dim_head_index]
             param = params[cross_dim_head_index]
-            cross_att_param_exp = torch.sum(cross_dim_head_mask) * param * 4
+            cross_att_param_exp = torch.sum(cross_dim_head_mask, dtype=torch.float) * param * 4
             cross_att_param_all = cross_dim_head_mask.size(0) * param * 4
                 
         if 'dim_ff' in modules:
             dim_ff_index = modules.index('dim_ff')
             dim_ff_mask = scores[dim_ff_index]
             dim_ff_param = params[dim_ff_index]
-            ffn_param_exp = torch.sum(dim_ff_mask) * dim_ff_param * 3
-            ffn_param_all = dim_ff_param.size(0) * dim_ff_param * 3
+            ffn_param_exp = torch.sum(dim_ff_mask, dtype=torch.float) * dim_ff_param * 3
+            ffn_param_all = dim_ff_mask.size(0) * dim_ff_param * 3
 
         if 'att' in modules:
             att_index = modules.index('att')
@@ -221,42 +230,4 @@ def get_params_from_block(info_dict: Dict[int, Dict[str, List]]):
 
         res_exp += param_exp
         res_all += param_all
-    return res_exp, res_all
-
-
-def _save_to_state_dict(model : torch.nn.Module, destination, prefix):
-    if isinstance(model, bmt.CheckpointBlock):
-        if config['rank'] != 0:
-            destination = OrderedDict() # creates an temporary ordered dict
-            destination._metadata = OrderedDict()
-        model.state_dict(destination=destination, prefix=prefix, keep_vars=False)
-    else:
-        if config['rank'] != 0:
-            destination = OrderedDict() # creates an temporary ordered dict
-            destination._metadata = OrderedDict()
-        model._save_to_state_dict(destination, prefix, False)
-
-def _save_to_rank0(model : torch.nn.Module, destination=None, prefix=''):
-    if destination is None:
-        destination = OrderedDict()
-        destination._metadata = OrderedDict()
-    destination._metadata[prefix[:-1]] = local_metadata = dict(version=model._version)
-    _save_to_state_dict(model, destination, prefix)
-    for name, module in model._modules.items():
-        if module is not None:
-            _save_to_rank0(module, destination, prefix + name + '.')
-    for hook in model._state_dict_hooks.values():
-        hook_result = hook(model, destination, prefix, local_metadata)
-        if hook_result is not None:
-            destination = hook_result
-    return destination
-
-
-def do_prune(model: Module):
-    assert hasattr(model, 'sprune_plugin')
-    # obtain state_dict() and plugin
-    state_dict = _save_to_rank0(model)
-    sprune_plugin = model.sprune_plugin #TODO the plugin should be 0, 1
-    # do prune
-    new_state_dict = state_dict.copy()
-    # prune transformer
+    return 1 - res_exp / res_all

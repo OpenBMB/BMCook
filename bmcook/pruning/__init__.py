@@ -51,13 +51,10 @@ def mask_storage(ordered_masks, storage_params, storage_info):
             to_offset_end = offset_end + param_st - storage_st
 
             # copy to buffer
-            #storaged_mask[storage_type].storage()[to_offset_st: to_offset_end].copy_(contiguous_param.storage()[offset_st: offset_end])
             d_dtype = storaged_mask[storage_type].dtype
             d_device = storaged_mask[storage_type].device
             contiguous_param = contiguous_param.to(device=d_device)
             
-            #if config['rank'] == 0:
-            #    print(config['rank'], d_device, contiguous_param.device)
             assert d_device == contiguous_param.device, "The devices does not match, which is not allowed when duplicating storage."
             torch.tensor([], dtype=d_dtype, device=d_device).set_(storaged_mask[storage_type].storage(), to_offset_st, (to_offset_end - to_offset_st,))[:] = \
                         torch.tensor([], dtype=d_dtype, device=d_device).set_(contiguous_param.storage(), offset_st, (offset_end - offset_st,))[:]
@@ -75,7 +72,7 @@ class BMPrune:
     _model = None
     _masks = None
     _optimizer = None
-    _sprune_module = None
+    _sprune = False
 
     @classmethod
     def compute_mask(cls, model, config):
@@ -102,17 +99,11 @@ class BMPrune:
             func = m4n2_1d
         elif prune_config['mask_method'] == 'm4n2_2d':
             func = m4n2_2d_greedy
-        elif prune_config['mask_method'] == 'structure':
-            with open('../bmcook/pruning/sprune/sprune.json', 'r') as file:
-                sprune_config = json.load(file)
-            plugin = SPrunePlugin(sprune_config, model)
-            cls.sprune_engine = SPruneEngine(model)
-            model.forward_old = model.forward
-            def forward_with_sprune(model_self, *args, **kwargs):
-                out = model_self.forward_old(*args, **kwargs)
-                cls.sprune_engine.update(plugin)
-                return out
-            model.forward = types.MethodType(forward_with_sprune, model)
+        elif prune_config['mask_method'] == 'sprune':
+            sprune_config = prune_config['sprune']
+            plugin = SPrunePlugin(model)
+            cls.sprune_engine = SPruneEngine(sprune_config, plugin)
+            cls._sprune = True
             return
         else:
             raise ValueError("Unknown mask method: {}".format(prune_config['mask_method']))
@@ -173,6 +164,28 @@ class BMPrune:
         cls._masks = _masks
 
     @classmethod
+    def set_forward_sprune(cls, forward_fn):
+        r"""
+        Modify the CookTrainer.forward
+
+        :param forward_fn: func CookTrainer.forward to modify.
+        :return: new forward modified
+        """
+        if cls._sprune is True:
+            def forward(model, loss_func, targets, *model_args, **model_kwargs):
+                outputs = forward_fn(model, loss_func, targets, *model_args, **model_kwargs)
+                loss = outputs[0]
+
+                lag_loss, sparsity = cls.sprune_engine.update()
+                loss += lag_loss
+                
+                outputs[0], outputs[2], outputs[3] = loss, lag_loss, sparsity
+                return outputs
+        else:
+            forward = forward_fn
+        return forward
+
+    @classmethod
     def set_optim_for_pruning(cls, optimizer):
         '''
         Modify the step function of the optimizer to avoid the update of the pruned weights, i.e., setting corresponding gradients and parameters to zeros.
@@ -189,27 +202,44 @@ class BMPrune:
         cls._optimizer = optimizer
         cls._optimizer.step_old = optimizer.step
 
-        def _step(opt_self, *args, **kwargs):
-            # prune gradients before step method
-            with torch.no_grad():
-                for p, mask, flag in cls._masks:
-                    if flag:
-                        for k in p:
-                            if p[k].grad is not None:
-                                p[k].grad.mul_(mask[k])
-                    else:
-                        if p.grad is not None:
-                            p.grad.mul_(mask)
-            # call original optimizer step method
-            rval = opt_self.step_old(*args, **kwargs)
-            # prune parameters after step method
-            with torch.no_grad():
-                for p, mask, flag in cls._masks:
-                    if flag:
-                        for k in p:
-                            p[k].mul_(mask[k])
-                    else:
-                        tmp_mask = torch.tensor(mask, dtype=p.dtype, device=p.device)
-                        p.mul_(tmp_mask)
-            return rval
-        cls._optimizer.step = types.MethodType(_step, cls._optimizer)
+        if cls._sprune is False:
+            def _step(opt_self, *args, **kwargs):
+                # prune gradients before step method
+                with torch.no_grad():
+                    for p, mask, flag in cls._masks:
+                        if flag:
+                            for k in p:
+                                if p[k].grad is not None:
+                                    p[k].grad.mul_(mask[k])
+                        else:
+                            if p.grad is not None:
+                                p.grad.mul_(mask)
+                # call original optimizer step method
+                rval = opt_self.step_old(*args, **kwargs)
+                # prune parameters after step method
+                with torch.no_grad():
+                    for p, mask, flag in cls._masks:
+                        if flag:
+                            for k in p:
+                                p[k].mul_(mask[k])
+                        else:
+                            tmp_mask = torch.tensor(mask, dtype=p.dtype, device=p.device)
+                            p.mul_(tmp_mask)
+                return rval
+            cls._optimizer.step = types.MethodType(_step, cls._optimizer)
+        else:
+            cls._optimizer.zero_grad_old = optimizer.zero_grad
+
+            def _step(opt_self, *args, **kwargs):
+                rval = opt_self.step_old(*args, **kwargs)
+                cls.sprune_engine.sp_optimizer.step()
+                cls.sprune_engine.lagrangian_optimizer.step()
+                return rval
+            cls._optimizer.step = types.MethodType(_step, cls._optimizer)
+
+            def _zero_grad(opt_self, *args, **kwargs):
+                rval = opt_self.zero_grad_old(*args, **kwargs)
+                cls.sprune_engine.sp_optimizer.zero_grad()
+                cls.sprune_engine.lagrangian_optimizer.zero_grad()
+                return rval
+            cls._optimizer.zero_grad = types.MethodType(_zero_grad, cls._optimizer)

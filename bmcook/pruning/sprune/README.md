@@ -1,13 +1,31 @@
-## note
+# BMCook SPrune
 
-怎样解决跨粒度sparsity计算问题?
+## Overview
+Structure pruning toolkit of BMCook.
 
-1. 可以用一个字典存储所有的待训练mask及param信息，该列表索引是overall index，记录一个score和对应的param。
-2. 遍历所有需训练的mask，放在对应的overall index上，如果在该overall index上重复出现则score累乘，关于param，永远保留最底层的param
-3. 所以最后的得到的是:[{param: int, score: float} * overall_layers]
-4. 之所以选用overall_index而不用transformer_index是因为所有粒度模块的overall_index是统一的
+If you want to prune a large PLM in a structured way, BMCook SPrune may help to get a desirable subtructure, based on L0 regularization and lagrangian method. For details, refer to:
 
-怎样解决actual prune的问题？
+1. [Learning Sparse Neural Networks through L_0 Regularization](https://openreview.net/forum?id=H1Y8hhg0b)
 
-1. 首先加载plugin和state_dict
-2. 从transformer开始，以树状向下延伸，直到叶子节点
+2. [Structured Pruning of Large Language Models](https://arxiv.org/abs/1910.04732)
+
+BMCook SPrune use two classes to manage structure pruning process: **SPrunePlugin** and **SPruneEngine**.
+
+**SPrunePlugin** consists of the mask, and directly related to the model. It's responsible for pruning. **SPruneEngine** manage the mask with specific strategy and criterion. It's responsible for finding an appropriate mask.
+
+## Usage
+
+1. Initialize a plugin from the target compressing model:
+```python
+plugin = SPrunePlugin(model)
+```
+2. Initialize an engine from the plugin and config:
+```python
+engine = SPruneEngine(sprune_config, plugin)
+```
+
+The process is coupled with BMCook.pruning. You can find it in "pruning/\_\_init\_\_.py"
+
+## Future
+
+We will provide more sprune strategies, like iterational pruning and hidden pruning, in the future. Stay tuned！ 
