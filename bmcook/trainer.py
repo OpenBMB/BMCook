@@ -206,13 +206,14 @@ class CPMAntTrainer:
             return ret
         cls.forward = forward
 
-        model = remove_checkpointblock(model)
-
         # for pruning
         BMPrune.version = cls._is_old_modelcenter
         BMPrune.compute_mask(model, cook_config)
         cls.forward = BMPrune.set_forward_sprune(cls.forward)
         BMPrune.set_optim_for_pruning(optimizer)
+
+        # remove CheckpointBlock
+        model = remove_checkpointblock(model)
 
         # for distillation
         BMDistill.version = cls._is_old_modelcenter
