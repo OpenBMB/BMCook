@@ -45,7 +45,7 @@ class SPruneEngine:
         self.lambda_2 = Parameter(torch.tensor(0.1, dtype=torch.float, device='cuda'))
         self.training_loga = {}
         for mask in self.strategy.training_mask:
-            shape = self.plugin._info['shape'][mask]
+            shape = self.plugin.info_to_engine['shape'][mask]
             self.training_loga[mask+'_loga'] = Parameter(torch.empty(shape[0], dtype=torch.float, device='cuda').normal_(0., 1e-2))
 
         self.create_sprune_optimizer()

@@ -124,6 +124,12 @@ class SPrunePlugin:
                                             })
                         set_pruning_ffn(module.ffn, len(FFN_MASK)-1, FFN_MASK, DIM_FF_MASK)
         
+        if TRANSFORMER_MASK == []:
+            raise TypeError("plugin doesn't maintain any mask, all the mask lists are empty, \
+                            please check if your model has the module type: bmt.CheckpointBlock or model_center.layer.TransformerBlock")
+        elif any((FFN_MASK == [], ATT_MASK == [], NUM_HEADS_MASK ==[], DIM_HEAD_MASK == [], DIM_FF_MASK == [])):
+            raise ValueError("Now BMCook doesn't support to prune model without feedforward layer or attention layer. It's also not allowed only layernorm parameters exist in these layers.")
+        
         # init mask shape for the use of loga
         transformer_mask_shape = (len(TRANSFORMER_MASK))
         
@@ -151,7 +157,7 @@ class SPrunePlugin:
                 for ffn in FFN_MASK]
         )
 
-        self._info = {
+        self.info_to_engine = {
             'all_params': prunable_all_params,
             'att_boundary': self_att_num - cross_att_num,
             'shape':{
@@ -197,7 +203,7 @@ class SPrunePlugin:
                 'num_heads': self.num_heads,
                 'dim_head': self.dim_head,
                 'dim_ff': self.dim_ff,
-                '_info': self._info}
+                'info_to_engine': self.info_to_engine}
         torch.save(res, path)
 
     def load_plugin(self, path):
@@ -213,7 +219,7 @@ class SPrunePlugin:
         r"""
         traverse all the necessary masks in this training.
         """
-        for name in self._info['shape'].keys():
+        for name in self.info_to_engine['shape'].keys():
             for i, v in enumerate(self.__dict__[name]):
                 if v['mask'] is not None:
                     yield name + '.' + str(i)
@@ -222,7 +228,7 @@ class SPrunePlugin:
         r"""
         traverse all the necessary modules in this training.
         """
-        for name in self._info['shape'].keys():
+        for name in self.info_to_engine['shape'].keys():
             for _, v in enumerate(self.__dict__[name]):
                 if v['mask'] is not None:
                     yield name
