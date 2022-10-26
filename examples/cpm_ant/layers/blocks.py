@@ -20,6 +20,8 @@ from .layernorm import LayerNorm
 from .attention import Attention
 from .feedforward import FeedForward
 
+# from model_center.layer import TransformerBlock as MC_TB
+
 
 class SelfAttentionBlock(bmt.DistributedModule):
     """The whole cross-attention block. A sequence of operation. Consists of layernorm, self-attention and residual connection.
@@ -158,7 +160,7 @@ class FFNBlock(torch.nn.Module):
         return hidden_states
 
 
-class TransformerBlock(torch.nn.Module):
+class TransformerBlock(bmt.DistributedModule):
     """The whole transformer block. A sequence of operation. Consists of self-attention block[, cross-attention block] and feed-forward block.
 
     Args:
