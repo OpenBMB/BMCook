@@ -1,5 +1,5 @@
 from .trainer import CookTrainer, CPMAntTrainer
-from .actual_prune import save_spruned
+from .store import save_spruned
 
 from .distilling import BMDistill
 from .pruning import BMPrune
