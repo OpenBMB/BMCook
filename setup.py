@@ -7,7 +7,7 @@ def main():
         description="Model Compression for Big Models",
         author="Baitao Gong",
         author_email="gongbaitao11@gmail.com",
-        packages=find_packages(exclude='cpm_ant'),
+        packages=find_packages(exclude='cpm_live'),
         url="https://github.com/OpenBMB/BMCook",
         install_requires=[
             "bmtrain",
