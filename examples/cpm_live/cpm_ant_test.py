@@ -3,10 +3,12 @@ import bmtrain as bmt
 from bmcook.utils.config import ConfigParser
 from bmcook import CPMAntTrainer
 
-from cpm_ant.arguments import parse_args
-from cpm_ant.models import CPMAntConfig, CPMAnt
-from cpm_ant.tokenizers import CPMAntTokenizer
-from cpm_ant.data import CPMAnt_Dataset, DistributedMMapIndexedDataset, BatchPacker
+import sys, os
+sys.path.insert(0, os.getcwd())
+from cpm_live.arguments import parse_args
+from cpm_live.models import CPMAntConfig, CPMAnt
+from cpm_live.tokenizers import CPMAntTokenizer
+from cpm_live.data import CPMAnt_Dataset, DistributedMMapIndexedDataset, BatchPacker
 
 def main():
 
@@ -64,8 +66,8 @@ def main():
 
         # ===========
         outputs = CPMAntTrainer.forward(model, loss_func, targets, input_idx, input_length, input_context, input_position, input_segment, input_span)
-        loss, lag_loss, sparsity, d_loss = outputs[0], outputs[2], outputs[3], outputs[-1]
-        global_loss = bmt.sum_loss(loss- d_loss - lag_loss).item()
+        loss, lag_loss, sparsity, d_loss, moe_records = outputs[0], outputs[2], outputs[3], outputs[4], outputs[5]
+        global_loss = bmt.sum_loss(loss - d_loss - lag_loss).item()
 
         # ===========
         loss = optimizer.loss_scale(loss)

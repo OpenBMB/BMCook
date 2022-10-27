@@ -2,9 +2,8 @@
     "distillation": {
         "ce_scale": 0,
 
-        "mse_hidn_scale": 0.1,
-        "mse_hidn_module": ["[post]encoder.output_layernorm:[post]encoder.output_layernorm",
-        "[pre]encoder.layers.0.ffn.layernorm_before_ffn:[pre]encoder.layers.0.ffn.layernorm_before_ffn"],
+        "mse_hidn_scale": 1,
+        "mse_hidn_module": ["[post]encoder.output_layernorm:[post]encoder.output_layernorm"],
         "mse_hidn_proj": false
     },
 

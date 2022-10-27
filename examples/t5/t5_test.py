@@ -90,20 +90,11 @@ def main():
     os.makedirs(ckpt_dir, exist_ok=True)
     json.dump(vars(args), open(save_dir / 'train_args.json', 'w'), indent=2)
 
-    #model_config = config_map[args.model].from_pretrained(args.model)
-    #model = model_map[args.model].from_pretrained(args.model, config=model_config)
-    model_config = config_map[args.model].from_json_file('/yinxr/gongbt/modelbase/t5-large/config.json')
-    model = model_map[args.model](model_config)
-    bmt.init_parameters(model)
-    bmt.load(model, '/yinxr/gongbt/modelbase/t5-large/pytorch_model.pt', strict=False)
-    #bmt.load(model, '/yinxr/gongbt/BMCook/BMCook-new-config/bmcook/results/t5-3b/checkpoints/ckpt-240000.pt', strict=False)
+    model_config = config_map[args.model].from_pretrained(args.model)
+    model = model_map[args.model].from_pretrained(args.model, config=model_config)
     
     # teacher model has the same config as the student model
-    #teacher = model_map[args.model].from_pretrained(args.model, config=model_config)
-    teacher = model_map[args.model](model_config)
-    bmt.init_parameters(teacher)
-    bmt.load(teacher, '/yinxr/gongbt/modelbase/t5-large/pytorch_model.pt', strict=False)
-    #bmt.load(teacher, '/yinxr/gongbt/BMCook/BMCook-new-config/bmcook/results/t5-3b/checkpoints/ckpt-240000.pt', strict=False)
+    teacher = model_map[args.model].from_pretrained(args.model, config=model_config)
 
     bmt.synchronize()
 
@@ -157,7 +148,7 @@ def main():
             with torch.no_grad():
                 outputs = CookTrainer.forward(model, loss_func, targets, enc_input, enc_length, dec_input, dec_length)
             
-            torch.save(outputs[-1], 'hiddens/' + '{}_{}'.format(iteration, bmt.rank()))
+            torch.save(outputs[-1], 'results/hiddens/' + '{}_{}'.format(iteration, bmt.rank()))
                
             bmt.print_rank("Iteration:", iteration)
         exit()
@@ -201,7 +192,7 @@ def main():
             loss = optimizer.loss_scale(loss)
 
             if do_distill:
-                distill_loss = bmt.sum_loss(outputs[-1]).item()
+                distill_loss = bmt.sum_loss(outputs[4]).item()
             else:
                 distill_loss = 0
             
@@ -221,8 +212,8 @@ def main():
                         lr_scheduler.current_lr,
                         int(optimizer.scale),
                         average_time / (1 - pow(average_time_shift, iteration + 1)),
-                        lag_loss.item(),
-                        sparsity.item(),
+                        lag_loss,
+                        sparsity,
                     )
                 )
             

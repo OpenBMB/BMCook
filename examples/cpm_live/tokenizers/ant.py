@@ -72,7 +72,7 @@ class CPMAntTokenizer(object):
         self.line_token = line_token
         self.space_token = space_token
 
-        self.encoder = load_vocab(pkg_resources.resource_stream("cpm_ant", "vocabs/ant.txt"))
+        self.encoder = load_vocab(pkg_resources.resource_stream("cpm_live", "vocabs/ant.txt"))
         self.encoder[" "] = self.encoder[space_token]
         self.encoder["\n"] = self.encoder[line_token]
 

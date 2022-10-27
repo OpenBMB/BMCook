@@ -20,8 +20,6 @@ from .layernorm import LayerNorm
 from .attention import Attention
 from .feedforward import FeedForward
 
-# from model_center.layer import TransformerBlock as MC_TB
-
 
 class SelfAttentionBlock(bmt.DistributedModule):
     """The whole cross-attention block. A sequence of operation. Consists of layernorm, self-attention and residual connection.

@@ -131,7 +131,7 @@ def main():
             dec_length = dec_length.cuda()
             
             with torch.no_grad():
-                outputs = CookTrainer.forward(model, None, None, (dec_input, dec_length, targets, loss_func))
+                outputs = CookTrainer.forward(model, loss_func, targets, dec_input, dec_length)
             
             torch.save(outputs[-1], save_dir / 'hiddens' / '{}_{}'.format(iteration, bmt.rank()))
                
@@ -170,7 +170,7 @@ def main():
             loss = optimizer.loss_scale(loss)
 
             if do_distill:
-                distill_loss = bmt.sum_loss(outputs[-1]).item()
+                distill_loss = bmt.sum_loss(outputs[4]).item()
             else:
                 distill_loss = 0
 
