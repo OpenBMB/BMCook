@@ -87,19 +87,14 @@ class CookTrainer:
             targets: the target used to calculate loss.
             model_args: args of :method:`model.forward`
             model_kwargs: kwargs of :method:`model.forward`
-            return_outputs: `bool`, if true, return the original model outputs instead of `logits`. The 
-                default value is `False`
 
         Return:
-            if return_outputs:
-                `[loss, logits, lag_loss, sparsity, d_loss]`
-            else:
-                `[loss, outputs, lag_loss, sparsity, d_loss]`
+            `[loss, model_outputs, lag_loss, sparsity, d_loss, moe_hidden]`
         """
         raise AttributeError("The staticmethod forward() should be defined in :method:`set_forward`.")
 
     @classmethod
-    def set_forward(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None, return_outputs: bool = False):
+    def set_forward(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None):
         r"""Define the :method:`forward`, and set up :class:`BMPrune`, :class:`BMDistill`, :class:`BMQuant`
         and :class:`BMMoE`.
 
@@ -134,10 +129,7 @@ class CookTrainer:
 
                 loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
                 
-                if return_outputs:
-                    ret = [loss, outputs, None, None, None]
-                else:
-                    ret = [loss, logits, None, None, None]
+                ret = [loss, outputs, 0, 0, 0, None]
                 return ret
         else:
             def forward(model, loss_func, targets, *model_args, **model_kwargs):
@@ -148,12 +140,12 @@ class CookTrainer:
 
                 loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
 
-                if return_outputs:
-                    ret = [loss, outputs, None, None, None]
-                else:
-                    ret = [loss, logits, None, None, None]
+                ret = [loss, outputs, 0, 0, 0, None]
                 return ret
+
+        forward_doc = cls.forward.__doc__
         cls.forward = forward
+        cls.forward.__doc__ = forward_doc
 
         # remove CheckpointBlock
         model = remove_checkpointblock(model)
@@ -187,7 +179,7 @@ class CPMAntTrainer:
         raise AttributeError("The staticmethod forward() should be defined in :method:`set_forward`.")
     
     @classmethod
-    def set_forward(cls, cook_config, model, optimizer, teacher, return_outputs=False):
+    def set_forward(cls, cook_config, model, optimizer, teacher):
         # remove CheckpointBlock
 
         def forward(model, loss_func, targets, *model_args, **model_kwargs):
@@ -198,13 +190,12 @@ class CPMAntTrainer:
 
             loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
 
-            if return_outputs is False:
-                ret = [loss, logits, None, None, None]
-            else:
-                ret = [loss, outputs, None, None, None]
+            ret = [loss, outputs, 0, 0, 0, None]
             
             return ret
+        forward_doc = cls.forward.__doc__
         cls.forward = forward
+        cls.forward.__doc__ = forward_doc
 
         # for pruning
         BMPrune.version = cls._is_old_modelcenter
