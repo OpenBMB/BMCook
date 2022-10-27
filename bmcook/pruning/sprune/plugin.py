@@ -1,9 +1,7 @@
 import torch
 import bmtrain as bmt
 from model_center.layer import TransformerBlock
-from model_center.model import BaseModel, Config
-from typing import Dict, Optional, Union, Tuple, Any, List
-from collections import OrderedDict
+from model_center.model import BaseModel
 
 from .utils import set_pruning_att, set_pruning_ffn, set_pruning_transformer, get_params_from_block
 
@@ -24,6 +22,7 @@ class SPrunePlugin:
         dim_ff = model_config.dim_ff
         if 'num_layers' in model_config.__dict__:
             num_layers = model_config.num_layers
+            num_encoder_layers = num_layers
         elif 'num_encoder_layers' in model_config.__dict__:
             num_encoder_layers = model_config.num_encoder_layers
             num_decoder_layers = model_config.num_decoder_layers
@@ -31,10 +30,10 @@ class SPrunePlugin:
             raise AttributeError("Missing num_layers or num_encoder_layers/num_decoder_layers in this config.")
 
         # model analysis
-        prunable_all_params = 0
-        self_att_num, cross_att_num = 0, 0
+        prunable_all_params, self_att_num = 0, 0
         TRANSFORMER_MASK, FFN_MASK, ATT_MASK = [], [], []
         NUM_HEADS_MASK, DIM_HEAD_MASK, DIM_FF_MASK = [], [], []
+        cross_att_buffer, cross_num_heads_buffer, cross_dim_head_buffer, names_buffer = [], [], [], []
         for name, module in model.named_modules():
             if type(module) in (bmt.block_layer.CheckpointBlock, TransformerBlock):
                 block_type, overall_index = name.split('.')[0], int(name.split('.')[2])
@@ -85,29 +84,27 @@ class SPrunePlugin:
                                                 })
                         set_pruning_att(module.self_att, len(ATT_MASK)-1, ATT_MASK, NUM_HEADS_MASK, DIM_HEAD_MASK)
                         self_att_num += 1
-                        
-                    
+                                           
                     if cross_att_param > 0:
-                        ATT_MASK.append({
+                        names_buffer.append(name)
+                        cross_att_buffer.append({
                                                 'index': overall_index, 
                                                 'param': cross_att_param,
                                                 'dim': 1,
                                                 'mask': None,
                                                 })
-                        NUM_HEADS_MASK.append({
+                        cross_num_heads_buffer.append({
                                                     'index': overall_index, 
-                                                    'param': num_heads,
+                                                    'param': dim_head,
                                                     'dim': num_heads,
                                                     'mask': None
                                                     })
-                        DIM_HEAD_MASK.append({
+                        cross_dim_head_buffer.append({
                                                     'index': overall_index, 
-                                                    'param': dim_head,
+                                                    'param': num_heads,
                                                     'dim': dim_head,
                                                     'mask': None
                                                     })
-                        set_pruning_att(module.cross_att, len(ATT_MASK)-1, ATT_MASK, NUM_HEADS_MASK, DIM_HEAD_MASK)
-                        cross_att_num += 1
 
                     if ffn_param > 0:
                         FFN_MASK.append({
@@ -123,7 +120,17 @@ class SPrunePlugin:
                                             'mask': None
                                             })
                         set_pruning_ffn(module.ffn, len(FFN_MASK)-1, FFN_MASK, DIM_FF_MASK)
-        
+
+        # append cross_att to att and set pruning
+        for (module_name, cross_att, cross_num_heads, cross_dim_head) in \
+            zip(names_buffer, cross_att_buffer, cross_num_heads_buffer, cross_dim_head_buffer):
+
+            ATT_MASK.append(cross_att)
+            NUM_HEADS_MASK.append(cross_num_heads)
+            DIM_HEAD_MASK.append(cross_dim_head)
+            set_pruning_att(model.get_submodule(module_name).cross_att, len(ATT_MASK)-1, ATT_MASK, NUM_HEADS_MASK, DIM_HEAD_MASK)
+
+        # check exception
         if TRANSFORMER_MASK == []:
             raise TypeError("plugin doesn't maintain any mask, all the mask lists are empty, \
                             please check if your model has the module type: bmt.CheckpointBlock or model_center.layer.TransformerBlock")
@@ -159,7 +166,8 @@ class SPrunePlugin:
 
         self.info_to_engine = {
             'all_params': prunable_all_params,
-            'att_boundary': self_att_num - cross_att_num,
+            'self_att_num': self_att_num,
+            'num_encoder_layers': num_encoder_layers,
             'shape':{
                 'transformer': ((transformer_mask_shape), torch.ones(transformer_mask_shape)),
                 'att': ((num_heads_layers), torch.ones(num_heads_layers)),
@@ -177,7 +185,7 @@ class SPrunePlugin:
         self.dim_head = DIM_HEAD_MASK
         self.dim_ff = DIM_FF_MASK
 
-        del num_heads_list, dim_head_list, ffn_list
+        del num_heads_list, dim_head_list, ffn_list, names_buffer, cross_att_buffer, cross_num_heads_buffer, cross_dim_head_buffer
 
     def print_masks(self, key: str = None):
         r"""print the masks managed in SPrunePlugin"""
