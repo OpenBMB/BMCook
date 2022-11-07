@@ -16,6 +16,9 @@ class BMQuant:
         :param model: Model to quantize.
         :param config: Configuration of the quantization.
         '''
+        quant_config = config.get('quantization')
+        if not quant_config['is_quant']:
+            return
 
         # fix cpm_kernel
         ct.gemm.GEMMInt8._backward = ct.gemm.GEMMInt8.backward
@@ -24,10 +27,6 @@ class BMQuant:
                 grad_f = grad_f.contiguous()
             return ct.gemm.GEMMInt8._backward(ctx, grad_f)
         ct.gemm.GEMMInt8.backward = new_func
-
-        quant_config = config.get('quantization')
-        if not quant_config['is_quant']:
-            return
 
         for name, module in model.named_modules():
             if isinstance(module, model_center.layer.Linear):
