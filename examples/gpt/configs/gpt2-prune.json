@@ -11,15 +11,7 @@
         "is_pruning": true,
         "pruning_mask_path": "prune_example.bin",
         "pruned_module": ["input_embedding"],
-        "mask_method": "m4n2_1d",
-        "sprune": {
-                "criterion": "l0",
-                "training_mask": ["transformer", "num_heads"],
-                "fixed_mask_path": "",
-                "mask_mode": "train_mask",
-                "target_mode": "sparsity",
-                "target_sparsity": 0.5
-                }
+        "mask_method": "m4n2_1d"
     },
 
     "quantization": {

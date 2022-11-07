@@ -46,7 +46,7 @@ def main():
                                             num_iter = 0)
     loss_func = bmt.loss.FusedCrossEntropy(ignore_index=-100)
 
-    CPMAntTrainer.set_forward(config, model, optimizer, teacher)
+    CPMAntTrainer.set_compression(config, model, optimizer, teacher)
 
     for iteration, data in enumerate(dataloader):
 

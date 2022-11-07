@@ -20,6 +20,8 @@ def print_inspect(model, name):
 class Dataloader:
     @staticmethod
     def batch_iter(dataset : Dataset, batch_size, rank, world_size):
+        st = 0
+        end = len(dataset)
         batch = []
         while st < end:
             it = dataset[st + rank]
@@ -79,7 +81,7 @@ def main():
     lr_scheduler = bmt.lr_scheduler.Noam(optimizer, start_lr=args.start_lr, warmup_iter=2000, end_iter=100000)
 
     config = ConfigParser(args.cook_config)
-    CookTrainer.set_forward(config, model, optimizer, teacher)    
+    CookTrainer.set_compression(config, model, optimizer, teacher)    
     
     average_time = 0
     average_time_shift = 0.9

@@ -19,29 +19,6 @@ def print_inspect(model, name):
 
 class Dataloader:
     @staticmethod
-    def batch_iter_shuf(dataset : Dataset, batch_size, rank, world_size):
-        st = 0
-        end = len(dataset)
-
-        local_size = len(dataset) // world_size
-        idx = list(range(local_size))
-        random.shuffle(idx)
-
-        batch = []
-        while st < local_size:
-            it = dataset[idx[st]*world_size + rank]
-            if it is not None:
-                batch.append( it )
-            st += 1
-            if len(batch) == batch_size:
-                yield {
-                    "ctx": torch.stack([it["ctx"] for it in batch]),
-                    "len_ctx": torch.LongTensor([it["len_ctx"] for it in batch]),
-                    'target': torch.stack([it["target"] for it in batch]),
-                }
-                batch = []
-
-    @staticmethod
     def batch_iter(dataset : Dataset, batch_size, rank, world_size):
         st = 0
         end = len(dataset)
@@ -78,18 +55,10 @@ def main():
     os.makedirs(ckpt_dir, exist_ok=True)
     json.dump(vars(args), open(save_dir / 'train_args.json', 'w'), indent=2)
 
-    # model_config = config_map[args.model].from_pretrained(args.model)
-    # model = model_map[args.model].from_pretrained(args.model, config=model_config)
-    # # teacher model has the same config as the student model
-    # teacher = model_map[args.model].from_pretrained(args.model, config=model_config)
-    model_config = config_map[args.model].from_json_file('/yinxr/gongbt/modelbase/gpt2-large/config.json')
-    model = model_map[args.model](model_config)
-    bmt.init_parameters(model)
-    bmt.load(model, '/yinxr/gongbt/modelbase/gpt2-large/pytorch_model.pt', strict=False)
+    model_config = config_map[args.model].from_pretrained(args.model)
+    model = model_map[args.model].from_pretrained(args.model, config=model_config)
     # teacher model has the same config as the student model
-    teacher = model_map[args.model](model_config)
-    bmt.init_parameters(teacher)
-    bmt.load(teacher, '/yinxr/gongbt/modelbase/gpt2-large/pytorch_model.pt', strict=False)
+    teacher = model_map[args.model].from_pretrained(args.model, config=model_config)
 
     bmt.synchronize()
 
@@ -102,7 +71,7 @@ def main():
     lr_scheduler = bmt.lr_scheduler.Noam(optimizer, start_lr=args.start_lr, warmup_iter=2000, end_iter=100000)
 
     config = ConfigParser(args.cook_config)
-    CookTrainer.set_forward(config, model, optimizer, teacher)
+    CookTrainer.set_compression(config, model, optimizer, teacher)
     
     average_time = 0
     average_time_shift = 0.9
