@@ -19,36 +19,7 @@ def print_inspect(model, name):
 
 class Dataloader:
     @staticmethod
-    def batch_iter_shuf(dataset : Dataset, batch_size, rank, world_size):
-        st = 0
-        end = len(dataset)
-
-        local_size = len(dataset) // world_size
-        idx = list(range(local_size))
-        random.shuffle(idx)
-
-        batch = []
-        while st < local_size:
-            it = dataset[idx[st]*world_size + rank]
-            if it is not None:
-                batch.append( it )
-            st += 1
-            if len(batch) == batch_size:
-                yield {
-                    "ctx": torch.stack([it["ctx"] for it in batch]),
-                    "len_ctx": torch.LongTensor([it["len_ctx"] for it in batch]),
-                    'target': torch.stack([it["target"] for it in batch]),
-                }
-                batch = []
-
-    @staticmethod
-    def batch_iter(dataset : Dataset, batch_size, rank, world_size, training=True):
-        if training == True:
-            st = 0
-            end = len(dataset) // 2
-        else:
-            st = len(dataset) // 2 + 1
-            end = len(dataset)
+    def batch_iter(dataset : Dataset, batch_size, rank, world_size):
         batch = []
         while st < end:
             it = dataset[st + rank]
@@ -220,7 +191,6 @@ def main():
             if iteration % args.save_interval == 0: 
                 ckpt_file = Path(args.save_dir, 'checkpoints', f'ckpt-{iteration}.pt')
                 bmt.save(model, ckpt_file) 
-        break
 
     ckpt_file = Path(args.save_dir, 'checkpoint.pt') 
     bmt.save(model, ckpt_file) 
