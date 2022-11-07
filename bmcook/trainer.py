@@ -94,7 +94,7 @@ class CookTrainer:
         raise AttributeError("The staticmethod forward() should be defined in :method:`set_forward`.")
 
     @classmethod
-    def set_forward(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None):
+    def set_compression(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None):
         r"""Define the :method:`forward`, and set up :class:`BMPrune`, :class:`BMDistill`, :class:`BMQuant`
         and :class:`BMMoE`.
 
@@ -179,7 +179,7 @@ class CPMAntTrainer:
         raise AttributeError("The staticmethod forward() should be defined in :method:`set_forward`.")
     
     @classmethod
-    def set_forward(cls, cook_config, model, optimizer, teacher):
+    def set_compression(cls, cook_config, model, optimizer, teacher):
         # remove CheckpointBlock
 
         def forward(model, loss_func, targets, *model_args, **model_kwargs):
