@@ -41,8 +41,8 @@ class SPruneEngine:
         self.plugin = plugin
         self.training = True
 
-        self.lambda_1 = Parameter(torch.tensor(0.1, dtype=torch.float, device='cuda'))
-        self.lambda_2 = Parameter(torch.tensor(0.1, dtype=torch.float, device='cuda'))
+        self.lambda_1 = Parameter(torch.tensor(0., dtype=torch.float, device='cuda'))
+        self.lambda_2 = Parameter(torch.tensor(0., dtype=torch.float, device='cuda'))
         self.training_loga = {}
         for mask in self.strategy.training_mask:
             shape = self.plugin.info_to_engine['shape'][mask]

@@ -9,7 +9,7 @@ class BMQuant:
     '''
 
     @classmethod
-    def quantize(cls, model, config):
+    def quantize(cls, model, config, target_linear = model_center.layer.Linear):
         '''
         Practitioners can turn on quantization by `is_quant` in the config, which will replace all linear layers with quantized linear layers. BMCook provides the simulation of 8-bit quantization.
 
@@ -29,11 +29,15 @@ class BMQuant:
         ct.gemm.GEMMInt8.backward = new_func
 
         for name, module in model.named_modules():
-            if isinstance(module, model_center.layer.Linear):
+            if isinstance(module, target_linear):
                 if len(quant_config["quantized_module"]) != 0:
                     if not any([pattern in name for pattern in quant_config["quantized_module"]]):
                         continue
-                module.forward = types.MethodType(forward_in8, module)
+                if target_linear != model_center.layer.Linear:
+                    module.forward = types.MethodType(forward_int8_cpmlive, module)
+                else:
+                    module.forward = types.MethodType(forward_in8, module)
+                module.quant = True
 
 def forward_in8(module_self, x):
     if module_self.length_scale and module_self.length_scale_before:
@@ -45,4 +49,14 @@ def forward_in8(module_self, x):
         x = x / math.sqrt(module_self.dim_in)
     if module_self.bias is not None:
         x = x + module_self.bias
+    return x
+
+def forward_int8_cpmlive(module_self, x):
+    if module_self.scale_before:
+        x = x / math.sqrt(module_self.dim_in)
+    x = x.transpose(1, 2).contiguous()
+    x = ct.bmm(module_self.weight.unsqueeze(0), False, x, False, int8=True)
+    x = x.transpose(1, 2).contiguous()
+    if not module_self.scale_before:
+        x = x / math.sqrt(module_self.dim_in)
     return x

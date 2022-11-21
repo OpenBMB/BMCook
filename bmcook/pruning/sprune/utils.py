@@ -6,6 +6,14 @@ from typing import List, Dict, Union, Optional, NewType
 
 SPlugin = NewType('Plugin', Dict[str, Optional[Union[int, Tensor]]])
 
+################################# get config from model #################################
+def get_dim_ff(module: Module):
+    if hasattr(module, 'dim_ff') and isinstance(module.dim_ff, int):
+        ret = module.dim_ff
+    else:
+        ret = module.w_out.dim_in
+    return ret
+
 ################################# utils for forward-inside pruning setup #################################
 def set_pruning_transformer(module: Module, index: int, TRANSFORMER_MASK: List[SPlugin], is_bmtCBlock: bool = True):
     module.index = index

@@ -179,23 +179,30 @@ class CPMAntTrainer:
         raise AttributeError("The staticmethod forward() should be defined in :method:`set_forward`.")
     
     @classmethod
-    def set_compression(cls, cook_config, model, optimizer, teacher):
+    def set_compression(cls, cook_config, model, optimizer, teacher, remove_ckptblock: bool = True, target_linear = None):
         # remove CheckpointBlock
 
         def forward(model, loss_func, targets, *model_args, **model_kwargs):
             outputs = model(
                 *model_args, **model_kwargs)
             logits = outputs[0]
-            batch, seq_len, vocab_out_size = logits.size()
+            # batch, seq_len, vocab_out_size = logits.size()
 
-            loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
+            # loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
+            loss = loss_func(logits.view(-1, logits.size(-1)), targets.view(-1))
 
-            ret = [loss, outputs, 0, 0, 0, None]
+            ret = [loss, logits, 0, 0, 0, None]
             
             return ret
         forward_doc = cls.forward.__doc__
         cls.forward = forward
         cls.forward.__doc__ = forward_doc
+
+        # for quantization
+        if target_linear is not None:
+            BMQuant.quantize(model, cook_config, target_linear)
+        else:
+            BMQuant.quantize(model, cook_config)
 
         # for pruning
         BMPrune.version = cls._is_old_modelcenter
@@ -204,14 +211,12 @@ class CPMAntTrainer:
         BMPrune.set_optim_for_pruning(optimizer)
 
         # remove CheckpointBlock
-        model = remove_checkpointblock(model)
+        if remove_ckptblock:
+            model = remove_checkpointblock(model)
 
         # for distillation
         BMDistill.version = cls._is_old_modelcenter
         cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
-
-        # for quantization
-        BMQuant.quantize(model, cook_config)
 
         # for moefication
         cls.forward = BMMoE.get_hidden(model, cook_config, cls.forward)

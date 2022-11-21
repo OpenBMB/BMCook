@@ -3,7 +3,7 @@ import bmtrain as bmt
 from model_center.layer import TransformerBlock
 from model_center.model import BaseModel
 
-from .utils import set_pruning_att, set_pruning_ffn, set_pruning_transformer, get_params_from_block
+from .utils import *
 
 class SPrunePlugin:
     r"""
@@ -14,22 +14,8 @@ class SPrunePlugin:
         '''
         analyze the structure prune methed.
         '''
-        # read some hyperparameters
-        model_config = model.config
-        dim_model = model_config.dim_model
-        num_heads = model_config.num_heads
-        dim_head = model_config.dim_head
-        dim_ff = model_config.dim_ff
-        if 'num_layers' in model_config.__dict__:
-            num_layers = model_config.num_layers
-            num_encoder_layers = num_layers
-        elif 'num_encoder_layers' in model_config.__dict__:
-            num_encoder_layers = model_config.num_encoder_layers
-            num_decoder_layers = model_config.num_decoder_layers
-        else:
-            raise AttributeError("Missing num_layers or num_encoder_layers/num_decoder_layers in this config.")
-
         # model analysis
+        num_encoder_layers, num_decoder_layers = 0, 0
         prunable_all_params, self_att_num = 0, 0
         TRANSFORMER_MASK, FFN_MASK, ATT_MASK = [], [], []
         NUM_HEADS_MASK, DIM_HEAD_MASK, DIM_FF_MASK = [], [], []
@@ -37,8 +23,10 @@ class SPrunePlugin:
         for name, module in model.named_modules():
             if type(module) in (bmt.block_layer.CheckpointBlock, TransformerBlock):
                 block_type, overall_index = name.split('.')[0], int(name.split('.')[2])
+                if block_type == 'encoder':
+                    num_encoder_layers += 1
                 if block_type == 'decoder':
-                    overall_index += num_encoder_layers
+                    num_decoder_layers += 1
 
                 ordered_parameters = [(k, v) for k, v in module.state_dict().items()]
                 self_att_param, cross_att_param, ffn_param = 0, 0, 0
@@ -49,6 +37,11 @@ class SPrunePlugin:
                         cross_att_param += v.numel()
                     elif 'ffn' in k:
                         ffn_param += v.numel()
+
+                dim_head = module.self_att.self_attention.dim_head
+                num_heads = module.self_att.self_attention.num_heads
+                dim_model = module.self_att.self_attention.dim_model
+                dim_ff = get_dim_ff(module.ffn.ffn)
                 
                 # model ststistics
                 transformer_layer_param = self_att_param + cross_att_param + ffn_param
