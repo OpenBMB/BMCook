@@ -144,7 +144,7 @@ from bmcook.utils.config import ConfigParser
 ...
 
 # setting up your BMCook strategy
-CookTrainer.set_forward(cookconfig, model, optimizer, model_distill)
+CookTrainer.set_compression(cookconfig, model, optimizer, model_distill)
 
 # train
 for data in dataloader:

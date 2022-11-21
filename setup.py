@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 def main():
     setup(
         name='bmcook',
-        version='0.1.1',
+        version='0.1.1.1',
         description="Model Compression for Big Models",
         author="Baitao Gong",
         author_email="gongbaitao11@gmail.com",
