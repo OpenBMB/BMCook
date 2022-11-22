@@ -129,15 +129,15 @@ $ git clone git@github.com:OpenBMB/BMCook.git
 
 ## 压缩效果
 
-基于GPT-J (6B)，我们评估了不同的压缩组合，语料库使用了OpenWebText。同时，我们基于该语料从头训练了一个0.7B参数的GPT-J作为对比。
+基于T5-3B，我们评估了不同的压缩组合，压缩语料库使用了Pile。选择SST-2、MNLI和SQuAD作为下游任务进行评测。适配下游任务时，我们固定了预训练模型参数，采用adapter-tuning进行训练。
 
-|                        |     LM Loss    |     Relative Performance    |     Speedup    |
+|                        |     Average Performance    |     Relative Performance    |     Speedup    |
 |------------------------|----------------|-----------------------------|----------------|
-|     GPT-J              |           3.37 |                        -    |          1x    |
-|     GPT-J (0.7B)       |           4.06 |                       83.0% |         ~10x   |
-|     GPT-J (P+D)        |           3.57 |                       94.4% |          2x    |
-|     GPT-J (P+D+Q)      |           3.58 |                       94.1% |          8x    |
-|     GPT-J (P+D+Q+M)    |           3.69 |                       91.3% |          10x   |
+|     T5-3B              |           0.9258 |                        -    |          1x    |
+|     T5-Base       |           0.8796 |                       95.0% |         7x   |
+|     T5-3B (P+D)        |           0.9150 |                       98.8% |          2x    |
+|     T5-3B (P+D+Q)      |           0.9126 |                       98.6% |          8x    |
+|     T5-3B (P+D+Q+M)    |           0.9017 |                       97.4% |          12x   |
 
 D 代表知识蒸馏；P 代表模型剪枝；Q 代表模型量化；M 代表模型专家化。
 
