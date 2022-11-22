@@ -1,10 +1,6 @@
 import types
-from numpy import record
-import torch
-from torch import nn
 import bmtrain as bmt
 import torch.nn.functional as F
-import cpm_kernels.torch as ct
 import model_center
 
 
@@ -38,12 +34,12 @@ class BMDistill:
             update_forward(student, teacher, s_module_map, t_module_map)
 
         if cls.version:
-            def forward(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func):
+            def forward(model, loss_func, targets, *model_args, **model_kwargs):
 
                 with bmt.inspect.inspect_tensor() as inspector:
                     outputs = foward_fn(
-                        model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)
-                    outputs_t = teacher(enc_input, enc_length, dec_input, dec_length, return_logits=True)
+                        model, loss_func, targets, *model_args, **model_kwargs)
+                    outputs_t = teacher(*model_args, **model_kwargs)
 
                 records = {}
                 for record in inspector._summary:
@@ -90,15 +86,16 @@ class BMDistill:
 
                 # update loss & append distillation loss
                 outputs[0] = loss
-                outputs = outputs + [d_loss, ]
+                outputs[4] = d_loss
                 return outputs
         else:
-            def forward(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func):
+            def forward(model, loss_func, targets, *model_args, **model_kwargs):
 
                 with bmt.inspect.inspect_tensor() as inspector:
                     outputs = foward_fn(
-                        model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)
-                    outputs_t = teacher(enc_input, enc_length, dec_input, dec_length, output_logits=True)
+                        model, loss_func, targets, *model_args, **model_kwargs)    
+                    outputs_t = teacher(*model_args, **model_kwargs)
+
 
                 records = {}
                 for record in inspector._summary:
@@ -144,7 +141,7 @@ class BMDistill:
 
                 # update loss & append distillation loss
                 outputs[0] = loss
-                outputs = outputs + [d_loss, ]
+                outputs[4] = d_loss
                 return outputs
         return forward
 

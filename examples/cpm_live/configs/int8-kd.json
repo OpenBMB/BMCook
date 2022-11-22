@@ -1,0 +1,33 @@
+{
+    "distillation": {
+        "ce_scale": 0,
+
+        "mse_hidn_scale": 1,
+        "mse_hidn_module": ["[post]encoder.output_layernorm:[post]encoder.output_layernorm"],
+        "mse_hidn_proj": false
+    },
+
+    "pruning": {
+        "is_pruning": false,
+        "pruning_mask_path": "prune_example.bin",
+        "pruned_module": ["input_embedding"],
+        "mask_method": "sprune",
+        "sprune": {
+                "criterion": "l0",
+                "training_mask": ["transformer", "num_heads"],
+                "fixed_mask_path": "",
+                "mask_mode": "train_mask",
+                "target_mode": "sparsity",
+                "target_sparsity": 0.5
+                }
+    },
+
+    "quantization": {
+        "is_quant": true
+    },
+
+    "MoEfication": {
+        "is_moefy": false,
+        "first_FFN_module": ["ffn.layernorm_before_ffn"]
+    }
+}

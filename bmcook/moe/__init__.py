@@ -1,8 +1,4 @@
-import numpy as np
-import torch
-import cpm_kernels.torch as ct
 import types
-import os
 import bmtrain as bmt
 
 class BMMoE:
@@ -29,17 +25,18 @@ class BMMoE:
 
         update_forward(modules)
 
-        def forward(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func):
+        def forward(model, loss_func, targets, *model_args, **model_kwargs):
             with bmt.inspect.inspect_tensor() as inspector:
                 outputs = forward_fn(
-                    model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)
+                    model, loss_func, targets, *model_args, **model_kwargs)
             
             records = {}
             for record in inspector._summary:
                 if 'moe_hidden' in record['name']:
                     records[record['name']] = record['tensor']
             
-            return outputs + [records]
+            outputs[5] = records
+            return outputs
         return forward
 
     # @staticmethod
