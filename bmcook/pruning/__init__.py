@@ -101,10 +101,11 @@ class BMPrune:
             func = m4n2_2d_greedy
         elif prune_config['mask_method'] == 'sprune':
             sprune_config = prune_config['sprune']
-            plugin = SPrunePlugin(model)
+            mask_path = sprune_config['mask_path']
+            plugin = SPrunePlugin(model, saved_path=mask_path)
             cls.sprune_engine = SPruneEngine(sprune_config, plugin)
             cls._sprune = True
-            return
+            return 
         else:
             raise ValueError("Unknown mask method: {}".format(prune_config['mask_method']))
 
@@ -174,12 +175,11 @@ class BMPrune:
         if cls._sprune is True:
             def forward(model, loss_func, targets, *model_args, **model_kwargs):
                 outputs = forward_fn(model, loss_func, targets, *model_args, **model_kwargs)
-                loss = outputs[0]
+                loss = outputs.loss
 
                 lag_loss, sparsity = cls.sprune_engine.update()
-                loss += lag_loss
                 
-                outputs[0], outputs[2], outputs[3] = loss, lag_loss, sparsity
+                outputs.loss, outputs.lag_loss, outputs.sparsity = loss, lag_loss, sparsity
                 return outputs
         else:
             forward = forward_fn
@@ -227,7 +227,7 @@ class BMPrune:
                             p.mul_(tmp_mask)
                 return rval
             cls._optimizer.step = types.MethodType(_step, cls._optimizer)
-        else:
+        elif cls.sprune_engine.mode == 'training':
             cls._optimizer.zero_grad_old = optimizer.zero_grad
 
             def _step(opt_self, *args, **kwargs):

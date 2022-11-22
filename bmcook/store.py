@@ -1,9 +1,13 @@
 import torch
 import bmtrain as bmt
-
+import cpm_kernels.kernels as ck
 from collections import OrderedDict
 
+from .pruning import BMPrune
+
 def _save_to_state_dict(model : torch.nn.Module, destination, prefix):
+    if hasattr(model, 'pruning_mask') and model.pruning_mask == 0:
+        return
     if isinstance(model, bmt.CheckpointBlock):
         if bmt.global_var.config['rank'] != 0:
             destination = OrderedDict() # creates an temporary ordered dict
@@ -29,6 +33,76 @@ def _save_to_rank0(model : torch.nn.Module, destination=None, prefix=''):
         if hook_result is not None:
             destination = hook_result
     return destination
+
+def reshape_attention(attention, num_heads_mask):
+    if 'project_' in k and k.split('.project_')[0] in num_heads_mask:              
+        k_prefix = k.split('.project_')[0]
+
+        if find_first_head is None:
+            find_first_head  = num_heads_mask[k_prefix]
+        
+        heads_mask = num_heads_mask[k_prefix]['mask']
+        dim_head = num_heads_mask[k_prefix]['param']
+        num_heads_unprune = num_heads_mask[k_prefix]['dim']
+        num_heads_target = torch.sum(heads_mask).item()
+        v = v.view(num_heads_unprune, dim_head, config.dim_model)
+        tgt = []
+        for i, mask in enumerate(heads_mask):
+            if mask == 1.:
+                tgt.append(v[i])
+        v = torch.stack(tgt)
+        assert v.size() == (num_heads_target, dim_head, config.dim_model)
+        new_state_dict[k] = v.view(num_heads_target * dim_head, config.dim_model)
+    
+    elif 'attention_out' in k and k.split('.attention_out')[0] in num_heads_mask:
+        k_prefix = k.split('.attention_out')[0]
+
+        param_info = num_heads_mask[k_prefix]
+        heads_mask = param_info['mask']
+        dim_head = param_info['param']
+        num_heads_unprune = param_info['dim']
+        num_heads_target = torch.sum(heads_mask).item()
+        v = v.permute(1, 0).view(num_heads_unprune, dim_head, config.dim_model)
+        tgt = []
+        for i, mask in enumerate(heads_mask):
+            if mask == 1.:
+                tgt.append(v[i])
+        v = torch.stack(tgt)
+        assert v.size() == (num_heads_target, dim_head, config.dim_model)
+        new_state_dict[k] = v.view(num_heads_target * dim_head, config.dim_model).permute(1, 0)
+
+
+def reshape_ffn(model, dim_ff_mask):
+    if 'ffn.ffn.w_in' in k and k.split('.ffn.ffn.w_in')[0] in dim_ff_mask:
+        k_prefix = k.split('.ffn.ffn.w_in')[0]
+        
+        dimff_mask = dim_ff_mask[k_prefix]['mask']
+        dimff_unprune = dim_ff_mask[k_prefix]['dim']
+        dimff_target = torch.sum(dimff_mask).item()
+        assert v.size() == (dimff_unprune, config.dim_model)
+        tgt = []
+        for i, mask in enumerate(dimff_mask):
+            if mask == 1.:
+                tgt.append(v[i])
+        v = torch.stack(tgt)
+        assert v.size() == (dimff_target, config.dim_model)
+        new_state_dict[k] = v
+    
+    elif 'ffn.ffn.w_out' in k and k.split('.ffn.ffn.w_out')[0] in dim_ff_mask:
+        k_prefix = k.split('.ffn.ffn.w_out')[0]
+        
+        dimff_mask = dim_ff_mask[k_prefix]['mask']
+        dimff_unprune = dim_ff_mask[k_prefix]['dim']
+        dimff_target = torch.sum(dimff_mask).item()
+        v = v.permute(1, 0)
+        assert v.size() == (dimff_unprune, config.dim_model)
+        tgt = []
+        for i, mask in enumerate(dimff_mask):
+            if mask == 1.:
+                tgt.append(v[i])
+        v = torch.stack(tgt).permute(1, 0)
+        assert v.size() == (config.dim_model, dimff_target)
+        new_state_dict[k] = v
 
 def save_spruned(model, plugin, file_name):
     # get state_dict of model
@@ -165,4 +239,43 @@ def save_spruned(model, plugin, file_name):
             new_state_dict[k] = v.permute(1, 0)
 
     if bmt.global_var.config["rank"] == 0:
+        torch.save(new_state_dict, file_name)
+
+def save_masks(file_name):
+    if BMPrune.sprune_engine is not None:
+        BMPrune.sprune_engine.save(file_name)
+
+def load_masks(file_name):
+    if BMPrune.sprune_engine is not None:
+        BMPrune.sprune_engine.plugin.load_masks(file_name)
+
+def save_quantized(model, file_name):
+    torch.cuda.synchronize()
+    state_dict = _save_to_rank0(model)
+
+    if bmt.global_var.config['rank'] == 0:
+        new_state_dict = state_dict.copy()
+
+        for name, module in model.named_modules():
+            if hasattr(module, "quant") and module.quant is True:
+                key = name+".weight"
+                value = state_dict[key].unsqueeze(0).cuda()
+
+                assert value.is_cuda and value.is_contiguous() and value.dtype == torch.half
+
+                scale_value = torch.empty((value.size(0), value.size(1)), dtype=torch.half, device=value.device)
+                ck.gemm_calc_scale(
+                    value.size(0), value.size(1), value.size(2),
+                    value.data_ptr(), scale_value.data_ptr(), torch.cuda.current_stream().cuda_stream
+                )
+
+                quant_value = torch.empty(value.size(), dtype=torch.int8, device=value.device)
+                ck.gemm_round(
+                    value.size(0), value.size(1), value.size(2),
+                    value.data_ptr(), scale_value.data_ptr(), quant_value.data_ptr(),
+                    torch.cuda.current_stream().cuda_stream
+                )
+
+                new_state_dict[key] = quant_value.squeeze(0).to('cpu')
+    
         torch.save(new_state_dict, file_name)

@@ -4,6 +4,8 @@ from torch import Tensor
 from torch.nn import Module
 from typing import List, Dict, Union, Optional, NewType
 
+import bmtrain as bmt
+
 SPlugin = NewType('Plugin', Dict[str, Optional[Union[int, Tensor]]])
 
 ################################# get config from model #################################
@@ -14,34 +16,49 @@ def get_dim_ff(module: Module):
         ret = module.w_out.dim_in
     return ret
 
+def get_dim_model(module: Module):
+    return module.w_out.dim_out
+
 ################################# utils for forward-inside pruning setup #################################
-def set_pruning_transformer(module: Module, index: int, TRANSFORMER_MASK: List[SPlugin], is_bmtCBlock: bool = True):
+def set_pruning_transformer(
+    module: Module, 
+    index: int, 
+    TRANSFORMER_MASK: List[SPlugin], 
+    is_bmtCBlock: bool = True
+    ):
     module.index = index
+    module.pruning_mask = TRANSFORMER_MASK[index].mask
     if is_bmtCBlock:
         module.forward_unprune = module._module.forward
     else:
         module.forward_unprune = module.forward
     def prune_forward(module_self, self_hidden_states, *args, **kwargs):
         index = module_self.index
-        mask = TRANSFORMER_MASK[index]['mask']
+        mask = TRANSFORMER_MASK[index].mask.to(self_hidden_states.device)
         out = module_self.forward_unprune(self_hidden_states, *args, **kwargs)
-        if mask is not None:
-            out = self_hidden_states + (out - self_hidden_states) * mask
+        out = self_hidden_states + (out - self_hidden_states) * mask
+        module_self.pruning_mask = mask
         return out
     if is_bmtCBlock:
         module._module.forward = types.MethodType(prune_forward, module)
     else:
         module.forward = types.MethodType(prune_forward, module)
 
-def set_pruning_att(module: Module, index: int, ATTENTION_MASK: List[SPlugin], NUM_HEADS_MASK: List[SPlugin], DIM_HEAD_MASK: List[SPlugin]):
+def set_pruning_att(
+    module: Module, 
+    index: int, 
+    ATTENTION_MASK: List[SPlugin], 
+    NUM_HEADS_MASK: List[SPlugin], 
+    DIM_HEAD_MASK: List[SPlugin]
+    ):
     module.index = index
+    module.pruning_mask = ATTENTION_MASK[index].mask
     module.forward_unprune = module.forward
     def prune_forward(module_self, hidden_states, *args, **kwargs):
-        index = module_self.index
-        mask = ATTENTION_MASK[index]['mask']
+        mask = ATTENTION_MASK[module_self.index].mask.to(hidden_states.device)
         out = module_self.forward_unprune(hidden_states, *args, **kwargs)
-        if mask is not None:
-            out = hidden_states + (out - hidden_states) * mask
+        out = hidden_states + (out - hidden_states) * mask
+        module_self.pruning_mask = mask
         return out
     module.forward = types.MethodType(prune_forward, module)
     # prune Linears:
@@ -51,15 +68,20 @@ def set_pruning_att(module: Module, index: int, ATTENTION_MASK: List[SPlugin], N
         elif 'attention_out' in s_name:
             set_pruning_linear_attention(s_module, index, NUM_HEADS_MASK, DIM_HEAD_MASK, 'out')
 
-def set_pruning_ffn(module: Module, index: int, FFN_MASK: List[SPlugin], DIM_FF_MASK: List[SPlugin]):
+def set_pruning_ffn(
+    module: Module, 
+    index: int, 
+    FFN_MASK: List[SPlugin], 
+    DIM_FF_MASK: List[SPlugin]
+    ):
     module.index = index
+    module.pruning_mask = FFN_MASK[index].mask
     module.forward_unprune = module.forward
     def prune_forward(module_self, hidden_states, *args, **kwargs):
-        index = module_self.index
-        mask = FFN_MASK[index]['mask']
+        mask = FFN_MASK[module_self.index].mask.to(hidden_states.device)
         out = module_self.forward_unprune(hidden_states, *args, **kwargs)
-        if mask is not None:
-            out = hidden_states + (out - hidden_states) * mask
+        out = hidden_states + (out - hidden_states) * mask
+        module_self.pruning_mask = mask
         return out
     module.forward = types.MethodType(prune_forward, module)
     # prune Linears
@@ -69,63 +91,73 @@ def set_pruning_ffn(module: Module, index: int, FFN_MASK: List[SPlugin], DIM_FF_
         elif 'w_out' in s_name:
             set_pruning_linear_feedforward(s_module, index, DIM_FF_MASK, 'out')
 
-def set_pruning_linear_attention(module: Module, index: int, NUM_HEADS_MASK: List[SPlugin], DIM_HEAD_MASK: List[SPlugin], in_out: str):
+def set_pruning_linear_attention(
+    module: Module, 
+    index: int, 
+    NUM_HEADS_MASK: List[SPlugin], 
+    DIM_HEAD_MASK: List[SPlugin], 
+    in_out: str,
+    is_num_priority: bool = True
+    ):
     assert len(NUM_HEADS_MASK) == len(DIM_HEAD_MASK)
     module.index = index
     module.forward_unprune = module.forward
     if in_out == 'in':
         def prune_forward(module_self, *args, **kwargs):
             index = module_self.index
-            num_heads, dim_head = NUM_HEADS_MASK[index]['dim'], DIM_HEAD_MASK[index]['dim']
-            num_heads_mask, dim_head_mask = NUM_HEADS_MASK[index]['mask'], DIM_HEAD_MASK[index]['mask']
+            num_heads, dim_head = NUM_HEADS_MASK[index].dim, DIM_HEAD_MASK[index].dim
+            num_heads_mask, dim_head_mask = NUM_HEADS_MASK[index].mask, DIM_HEAD_MASK[index].mask
             out = module_self.forward_unprune(*args, **kwargs)  # (batch, len, num_heads*dim_head)
-            if num_heads_mask is not None:
-                old_size = out.size()
-                out = out.view(old_size[0], old_size[1], num_heads, dim_head)
-                out = out * num_heads_mask.view(num_heads, 1)
-                out = out.view(old_size[0], old_size[1], num_heads * dim_head)
-            if dim_head_mask is not None:
-                old_size = out.size()
-                out = out.view(old_size[0], old_size[1], num_heads, dim_head)
-                out = out * dim_head_mask
-                out = out.view(old_size[0], old_size[1], num_heads * dim_head)
+
+            old_size = out.size()
+            out = out.view(old_size[0], old_size[1], num_heads, dim_head)
+            if is_num_priority:
+                out = out * num_heads_mask.view(num_heads, 1).to(out.device) * dim_head_mask.to(out.device)
+            else:
+                out = out * dim_head_mask.to(out.device) * num_heads_mask.view(num_heads, 1).to(out.device)
+            out = out.view(old_size[0], old_size[1], num_heads * dim_head)
+
             return out
+
     elif in_out == 'out':
         def prune_forward(module_self, x, *args, **kwargs):
             index = module_self.index
-            num_heads, dim_head = NUM_HEADS_MASK[index]['dim'], DIM_HEAD_MASK[index]['dim']
-            num_heads_mask, dim_head_mask = NUM_HEADS_MASK[index]['mask'], DIM_HEAD_MASK[index]['mask']
-            if num_heads_mask is not None:
-                old_size = x.size()  # (batch, len, num_heads * dim_head)
-                x = x.view(old_size[0], old_size[1], num_heads, dim_head)
-                x = x * num_heads_mask.view(num_heads, 1)
-                x = x.view(old_size[0], old_size[1], num_heads * dim_head)
-            if dim_head_mask is not None:
-                old_size = x.size()
-                x = x.view(old_size[0], old_size[1], num_heads, dim_head)
-                x = x * dim_head_mask
-                x = x.view(old_size[0], old_size[1], num_heads * dim_head)
+            num_heads, dim_head = NUM_HEADS_MASK[index].dim, DIM_HEAD_MASK[index].dim
+            num_heads_mask, dim_head_mask = NUM_HEADS_MASK[index].mask, DIM_HEAD_MASK[index].mask
+
+            old_size = x.size()  # (batch, len, num_heads * dim_head)
+            x = x.view(old_size[0], old_size[1], num_heads, dim_head)
+            if is_num_priority:
+                x = x * num_heads_mask.view(num_heads, 1).to(x.device) * dim_head_mask.to(x.device)
+            else:
+                x = x * dim_head_mask.to(x.device) * num_heads_mask.view(num_heads, 1).to(x.device)
+            x = x.view(old_size[0], old_size[1], num_heads * dim_head)
+
             out = module_self.forward_unprune(x, *args, **kwargs)  # (batch, len, dim_model)
             return out
+
     module.forward = types.MethodType(prune_forward, module)
 
-def set_pruning_linear_feedforward(module: Module, index: int, DIM_FF_MASK: List[SPlugin], in_out: str):
+def set_pruning_linear_feedforward(
+    module: Module, 
+    index: int, 
+    DIM_FF_MASK: List[SPlugin], 
+    in_out: str
+    ):
     module.index = index
     module.forward_unprune = module.forward
     if in_out == 'in':
         def prune_forward(module_self, *args, **kwargs):
             index = module_self.index
-            mask = DIM_FF_MASK[index]['mask']
+            mask = DIM_FF_MASK[index].mask
             out = module_self.forward_unprune(*args, **kwargs)
-            if mask is not None:
-                out = out * mask
+            out = out * mask.to(out.device)
             return out
     elif in_out == 'out':
         def prune_forward(module_self, x, *args, **kwargs):
             index = module_self.index
-            mask = DIM_FF_MASK[index]['mask']
-            if mask is not None:
-                x = x * mask
+            mask = DIM_FF_MASK[index].mask
+            x = x * mask.to(x.device)
             out = module_self.forward_unprune(x, *args, **kwargs)
             return out
     module.forward = types.MethodType(prune_forward, module)
@@ -232,9 +264,9 @@ def get_params_from_block(info_dict: Dict[int, Dict[str, List]]):
             param = params[transformer_index]
             if param_exp == 0:
                 param_exp = param * transformer_mask
-                param_all = param
             else:
                 param_exp = param_exp * transformer_mask
+            param_all = param
 
         res_exp += param_exp
         res_all += param_all

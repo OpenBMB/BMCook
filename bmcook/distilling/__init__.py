@@ -45,8 +45,8 @@ class BMDistill:
                 for record in inspector._summary:
                     records[record['name']] = record['tensor']
 
-                loss = outputs[0]
-                model_outputs = outputs[1]
+                loss = outputs.loss
+                model_outputs = outputs.original_output
                 logits_s = model_outputs
 
 
@@ -85,8 +85,8 @@ class BMDistill:
                 loss = loss + d_loss
 
                 # update loss & append distillation loss
-                outputs[0] = loss
-                outputs[4] = d_loss
+                outputs.loss = loss
+                outputs.d_loss = d_loss
                 return outputs
         else:
             def forward(model, loss_func, targets, *model_args, **model_kwargs):
@@ -101,8 +101,8 @@ class BMDistill:
                 for record in inspector._summary:
                     records[record['name']] = record['tensor']
 
-                loss = outputs[0]
-                model_outputs = outputs[1]
+                loss = outputs.loss
+                model_outputs = outputs.original_output
                 logits_s = model_outputs
 
                 # Compute loss and d_loss
@@ -140,8 +140,8 @@ class BMDistill:
                 loss = loss + d_loss
 
                 # update loss & append distillation loss
-                outputs[0] = loss
-                outputs[4] = d_loss
+                outputs.loss = loss
+                outputs.d_loss = d_loss
                 return outputs
         return forward
 
