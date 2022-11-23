@@ -58,14 +58,21 @@ def binarize(loga: Tensor, hard_binarize: bool = False, target_s: Optional[float
     else:
         res = []
         for index in range(loga.size(0)):
-            num_zero = round(expected_num_zeros[index].item())
+            submask = mask[index]
+            if not hard_binarize:
+                expected_num_nonzeros = torch.sum(submask, -1)
+                total_num_nonzeros = loga.size(-1)
+                expected_num_zeros = total_num_nonzeros - expected_num_nonzeros
+            else:
+                expected_num_zeros = torch.tensor(submask.numel() * target_s)
+            num_zeros = round(expected_num_zeros.item())
             cur_layer = loga[index]
             soft_mask = torch.ones_like(cur_layer, dtype=torch.half)
-            if num_zero > 0:
+            if num_zeros > 0:
                 if soft_mask.ndim == 0:
                     soft_mask = torch.tensor(0).to(cur_layer.device)
                 else:
-                    _, indices = torch.topk(mask[index], k=num_zero, largest=False)  # 返回values, indices
+                    _, indices = torch.topk(mask[index], k=num_zeros, largest=False)  # 返回values, indices
                     soft_mask[indices] = 0.  # 置零
             res.append(soft_mask)
         res = torch.stack(res)

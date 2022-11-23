@@ -59,7 +59,7 @@ class SPruneUnit:
             res = torch.sum(self.density * self.param) * self.num
         else:
             res = self.density * self.residual
-            for _, unit in self._subunits.items():
+            for k, unit in self._subunits.items():
                 res += self.density * unit.get_param_exp()
         return res
     
@@ -67,7 +67,7 @@ class SPruneUnit:
         if self.is_dropped:
             return 0
         if self.is_leaf:
-            res = torch.tensor(self.param) * self.num
+            res = torch.tensor(self.dim * self.param) * self.num
         else:
             res = self.residual
             for _, unit in self._subunits.items():
@@ -278,15 +278,40 @@ class SPrunePlugin:
                 set_pruning_ffn(module, self.ffn.name2index(name), self.ffn, self.dim_ff)
     
     def masks_setup(self):
-        base_grain = max([mask.grain for mask in self.training_masks.values()])
-        top_grain = min([mask.grain for mask in self.training_masks.values()])
+        ffn_path = ['transformer', 'ffn', 'dim_ff']
+        att_path = ['transformer', 'att', 'dim_head', 'num_heads']
+        ffn_base_grain = max([mask.grain for name, mask in self.training_masks.items() if name in ffn_path])
+        ffn_top_grain = min([mask.grain for name, mask in self.training_masks.items() if name in ffn_path])
+        att_base_grain = max([mask.grain for name, mask in self.training_masks.items() if name in att_path])
+        att_top_grain = min([mask.grain for name, mask in self.training_masks.items() if name in att_path])
+        att_names = [k for k in self.training_masks if k in att_path]
+        ffn_names = [k for k in self.training_masks if k in ffn_path]
+        if 'num_heads' in att_names:
+            self.dim_head.set_drop()
+        elif 'dim_head' in att_names:
+            self.num_heads.set_drop()
+        elif 'num_heads' in att_names and 'dim_head' in att_names:
+            raise ValueError('pruning num_heads and dim_head simultaneously isnnot supported yet.')
         self.start_name = []
-        for name, mask in self.training_masks.items():
-            if mask.grain == top_grain:
+        if 'transformer' in self.training_masks and 'att' in self.training_masks:
+            self.training_masks.setdefault('ffn', self.ffn)
+        elif 'transformer' in self.training_masks and 'att' in self.training_masks:
+            self.training_masks.setdefault('att', self.att)
+        for name in att_names:
+            mask = self.training_masks[name]
+            if mask.grain == att_top_grain:
                 self.start_name.append(name)
-            if mask.grain == base_grain:
+            if mask.grain == att_base_grain:
                 self.training_masks[name].set_leaf()
-            elif mask.grain > base_grain:
+            elif mask.grain > att_base_grain:
+                self.training_masks[name].set_drop()
+        for name in ffn_names:
+            mask = self.training_masks[name]
+            if mask.grain == ffn_top_grain:
+                self.start_name.append(name)
+            if mask.grain == ffn_base_grain:
+                self.training_masks[name].set_leaf()
+            elif mask.grain > ffn_base_grain:
                 self.training_masks[name].set_drop()
     
     def __len__(self):

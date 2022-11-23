@@ -113,7 +113,7 @@ class SPruneEngine(torch.nn.Module):
             
             for index in range(mask.size(0)):
                 self.plugin.__dict__[module][index].mask = mask[index].clone().detach()
-                self.plugin.__dict__[module][index].density = train_mask[index]
+                self.plugin.__dict__[module][index].density = train_mask[index].squeeze(-1) if train_mask[index].size(-1) == 1 else train_mask[index]
 
         param_exp, param_all = self.plugin.get_param_exp_all()
 
