@@ -7,6 +7,13 @@ from typing import Optional
 gamma, zeta, epsilon = -.1, 1.1, 1e-6
 beta = 2./3.
 
+def cdf_concrete_dist(eps: Tensor, loga: Tensor):
+    r"""Implements the CDF of the 'stretched' concrete distribution"""
+    xn = (eps - gamma) / (zeta - gamma)
+    s = torch.sigmoid((torch.log(xn / (1 - xn)) * beta - loga))
+    z = s.clamp(min=0., max=1.)
+    return z
+
 def l0_norm_term(loga: Tensor):
     r"""calculate the l0 norm term. For details, see paper
     'Structured Pruning of Large Language Models' <https://arxiv.org/abs/1910.04732>"""
@@ -33,18 +40,18 @@ def sample(loga: Tensor):
     s = torch.sigmoid((torch.log(eps / (1 - eps)) + loga) / beta)
     s = s * (zeta - gamma) + gamma
     z = s.clamp(min=epsilon, max=1-epsilon)
-    z_ = z.to(device='cuda', dtype=torch.half)  # remove from the computation graph of sp_module
+    z_ = z.to(device=loga.device, dtype=torch.half)  # remove from the computation graph of sp_module
     return z_
 
 def binarize(loga: Tensor, hard_binarize: bool = False, target_s: Optional[float] = None):
     mask = determinate_mask(loga)
-    if not hard_binarize:
-        expected_num_nonzeros = torch.sum(mask, -1)
-        total_num_nonzeros = loga.size(-1)
-        expected_num_zeros = total_num_nonzeros - expected_num_nonzeros
-    else:
-        expected_num_zeros = torch.tensor(mask.numel() * target_s)
     if loga.size(-1) == 1:
+        if not hard_binarize:
+            expected_num_nonzeros = mask.sum()
+            total_num_nonzeros = loga.size(-1)
+            expected_num_zeros = total_num_nonzeros - expected_num_nonzeros
+        else:
+            expected_num_zeros = torch.tensor(mask.numel() * target_s)
         loga_ = loga.squeeze(-1)
         num_zeros = round(expected_num_zeros.item())
         soft_mask = torch.ones_like(loga_, dtype=torch.half)
