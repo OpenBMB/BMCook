@@ -35,7 +35,7 @@ class BMMoE:
                 if 'moe_hidden' in record['name']:
                     records[record['name']] = record['tensor']
             
-            outputs[5] = records
+            outputs.moe_records = records
             return outputs
         return forward
 

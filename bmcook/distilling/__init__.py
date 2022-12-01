@@ -1,7 +1,7 @@
 import types
 import bmtrain as bmt
 import torch.nn.functional as F
-import model_center
+import model_center.layer as Layer
 
 
 class BMDistill:
@@ -10,7 +10,7 @@ class BMDistill:
     '''
 
     @classmethod
-    def set_forward(cls, student, teacher, foward_fn, config):
+    def set_forward(cls, student, teacher, foward_fn, config, target_linear = Layer.Linear):
         '''
         Modify the forward function of the student model to compute additional knowledge distillation loss.
 
@@ -45,8 +45,8 @@ class BMDistill:
                 for record in inspector._summary:
                     records[record['name']] = record['tensor']
 
-                loss = outputs[0]
-                model_outputs = outputs[1]
+                loss = outputs.loss
+                model_outputs = outputs.original_output
                 logits_s = model_outputs
 
 
@@ -72,21 +72,25 @@ class BMDistill:
                                 s_dim = student_t.size(-1)
                                 # May be different on different devices
                                 
-                                s_module_map[module_name]['mapping'] = model_center.layer.Linear(t_dim, s_dim, init_std=0.02)
+                                s_module_map[module_name]['mapping'] = target_linear(t_dim, s_dim, init_std=0.02)
                                 bmt.init_parameters(s_module_map[module_name]['mapping'])
                                 s_module_map[module_name]['mapping'].to(teacher_t.device)
                                 bmt.synchronize()
                             
                             teacher_t = s_module_map[module_name]['mapping'](teacher_t)
                             
-                        cur_loss = (student_t - teacher_t).pow(2).mean() * distill_config['mse_hidn_scale']
+                        #normalize
+                        student_t_norm = student_t / (student_t.norm(dim=-1)).mean()
+                        teacher_t_norm = teacher_t / (teacher_t.norm(dim=-1)).mean()
+                        
+                        cur_loss = (student_t_norm - teacher_t_norm).pow(2).mean() * distill_config['mse_hidn_scale']
                         d_loss += cur_loss
                 
                 loss = loss + d_loss
 
                 # update loss & append distillation loss
-                outputs[0] = loss
-                outputs[4] = d_loss
+                outputs.loss = loss
+                outputs.d_loss = d_loss
                 return outputs
         else:
             def forward(model, loss_func, targets, *model_args, **model_kwargs):
@@ -96,14 +100,13 @@ class BMDistill:
                         model, loss_func, targets, *model_args, **model_kwargs)    
                     outputs_t = teacher(*model_args, **model_kwargs)
 
-
                 records = {}
                 for record in inspector._summary:
                     records[record['name']] = record['tensor']
 
-                loss = outputs[0]
-                model_outputs = outputs[1]
-                logits_s = model_outputs
+                loss = outputs.loss
+                model_outputs = outputs.original_output
+                logits_s = model_outputs.logits
 
                 # Compute loss and d_loss
                 d_loss = 0.0
@@ -127,21 +130,25 @@ class BMDistill:
                                 s_dim = student_t.size(-1)
                                 # May be different on different devices
                                 
-                                s_module_map[module_name]['mapping'] = model_center.layer.Linear(t_dim, s_dim, init_std=0.02)
+                                s_module_map[module_name]['mapping'] = target_linear(t_dim, s_dim, init_std=0.02)
                                 bmt.init_parameters(s_module_map[module_name]['mapping'])
                                 s_module_map[module_name]['mapping'].to(teacher_t.device)
                                 bmt.synchronize()
                             
                             teacher_t = s_module_map[module_name]['mapping'](teacher_t)
-                            
-                        cur_loss = (student_t - teacher_t).pow(2).mean() * distill_config['mse_hidn_scale']
+
+                        #normalize
+                        student_t_norm = student_t / (student_t.norm(dim=-1)).mean()
+                        teacher_t_norm = teacher_t / (teacher_t.norm(dim=-1)).mean()
+                        
+                        cur_loss = (student_t_norm - teacher_t_norm).pow(2).mean() * distill_config['mse_hidn_scale']
                         d_loss += cur_loss
                 
                 loss = loss + d_loss
 
                 # update loss & append distillation loss
-                outputs[0] = loss
-                outputs[4] = d_loss
+                outputs.loss = loss
+                outputs.d_loss = d_loss
                 return outputs
         return forward
 

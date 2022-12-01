@@ -16,6 +16,25 @@ from .moe import BMMoE
 from .quant import BMQuant
 from .utils.config import ConfigParser
 
+class CookOutput:
+    def __init__(self, 
+        loss, 
+        original_output, 
+        lag_loss = 0., 
+        sparsity = 0., 
+        d_loss = 0., 
+        sprune_plugin = None, 
+        sprune_engine = None
+        ):
+
+        self.loss = loss
+        self.original_output = original_output
+        self.lag_loss = lag_loss
+        self.sparsity = sparsity
+        self.d_loss = d_loss
+        self.sprune_plugin = sprune_plugin
+        self.sprune_engine = sprune_engine
+
 def version_checker():
     """
     compatible with different ModelCenter version. (to help adjust the CookTrainer setup)
@@ -91,10 +110,10 @@ class CookTrainer:
         Return:
             `[loss, model_outputs, lag_loss, sparsity, d_loss, moe_hidden]`
         """
-        raise AttributeError("The staticmethod forward() should be defined in :method:`set_forward`.")
+        raise NotImplementedError("The staticmethod forward() should be defined in :method:`set_forward`.")
 
     @classmethod
-    def set_compression(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None):
+    def set_compression(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None, remove_ckptblock: bool = True):
         r"""Define the :method:`forward`, and set up :class:`BMPrune`, :class:`BMDistill`, :class:`BMQuant`
         and :class:`BMMoE`.
 
@@ -110,10 +129,13 @@ class CookTrainer:
             optimizer: optimizer used to train model.
             teacher: teacher model used to distillation, basically from ModelCenter PLMs.
         """
+        assert model is not None, "model is necessary for any compression setup."
+        
         model_args_list = inspect.getfullargspec(model.forward).args
-        teacher_args_list = inspect.getfullargspec(teacher.forward).args
-        if teacher_args_list != model_args_list:
-            raise ValueError("the techer forward func differs from model forward func.")
+        if teacher is not None:
+            teacher_args_list = inspect.getfullargspec(teacher.forward).args
+            if teacher_args_list != model_args_list:
+                raise ValueError("the techer forward func differs from model forward func.")
         
         if 'return_logits' in model_args_list:
             model.forward = functools.partial(model.forward, return_logits=True)
@@ -129,7 +151,7 @@ class CookTrainer:
 
                 loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
                 
-                ret = [loss, outputs, 0, 0, 0, None]
+                ret = CookOutput(loss, outputs)
                 return ret
         else:
             def forward(model, loss_func, targets, *model_args, **model_kwargs):
@@ -140,7 +162,7 @@ class CookTrainer:
 
                 loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
 
-                ret = [loss, outputs, 0, 0, 0, None]
+                ret = CookOutput(loss, outputs)
                 return ret
 
         forward_doc = cls.forward.__doc__
@@ -148,7 +170,8 @@ class CookTrainer:
         cls.forward.__doc__ = forward_doc
 
         # remove CheckpointBlock
-        model = remove_checkpointblock(model)
+        if remove_ckptblock:
+            model = remove_checkpointblock(model)
 
         # for pruning
         BMPrune.version = cls._is_old_modelcenter
@@ -191,7 +214,7 @@ class CPMAntTrainer:
             # loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
             loss = loss_func(logits.view(-1, logits.size(-1)), targets.view(-1))
 
-            ret = [loss, logits, 0, 0, 0, None]
+            ret = CookOutput(loss, outputs)
             
             return ret
         forward_doc = cls.forward.__doc__
@@ -216,7 +239,10 @@ class CPMAntTrainer:
 
         # for distillation
         BMDistill.version = cls._is_old_modelcenter
-        cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
+        if target_linear is not None:
+            cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config, target_linear)
+        else:
+            cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
 
         # for moefication
         cls.forward = BMMoE.get_hidden(model, cook_config, cls.forward)

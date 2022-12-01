@@ -174,12 +174,13 @@ class BMPrune:
         if cls._sprune is True:
             def forward(model, loss_func, targets, *model_args, **model_kwargs):
                 outputs = forward_fn(model, loss_func, targets, *model_args, **model_kwargs)
-                loss = outputs[0]
+                loss = outputs.loss
 
                 lag_loss, sparsity = cls.sprune_engine.update()
-                loss += lag_loss
+                # lag_loss should not be scaled
+                # loss += lag_loss
                 
-                outputs[0], outputs[2], outputs[3] = loss, lag_loss, sparsity
+                outputs.loss, outputs.lag_loss, outputs.sparsity = loss, lag_loss, sparsity
                 return outputs
         else:
             forward = forward_fn
