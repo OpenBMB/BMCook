@@ -20,9 +20,9 @@ class CookOutput:
     def __init__(self, 
         loss, 
         original_output, 
-        lag_loss, 
-        sparsity, 
-        d_loss, 
+        lag_loss = 0., 
+        sparsity = 0., 
+        d_loss = 0., 
         sprune_plugin = None, 
         sprune_engine = None
         ):
@@ -151,7 +151,7 @@ class CookTrainer:
 
                 loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
                 
-                ret = CookOutput(loss, outputs, 0, 0, None)
+                ret = CookOutput(loss, outputs)
                 return ret
         else:
             def forward(model, loss_func, targets, *model_args, **model_kwargs):
@@ -162,7 +162,7 @@ class CookTrainer:
 
                 loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
 
-                ret = CookOutput(loss, outputs, 0, 0, None)
+                ret = CookOutput(loss, outputs)
                 return ret
 
         forward_doc = cls.forward.__doc__
@@ -214,7 +214,7 @@ class CPMAntTrainer:
             # loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
             loss = loss_func(logits.view(-1, logits.size(-1)), targets.view(-1))
 
-            ret = CookOutput(loss, outputs, 0, 0, None)
+            ret = CookOutput(loss, outputs)
             
             return ret
         forward_doc = cls.forward.__doc__
@@ -239,7 +239,10 @@ class CPMAntTrainer:
 
         # for distillation
         BMDistill.version = cls._is_old_modelcenter
-        cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
+        if target_linear is not None:
+            cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config, target_linear)
+        else:
+            cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
 
         # for moefication
         cls.forward = BMMoE.get_hidden(model, cook_config, cls.forward)
