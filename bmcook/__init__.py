@@ -1,5 +1,5 @@
 from .trainer import CookTrainer, CPMAntTrainer
-from .store import save_spruned, save_quantized, save_masks, load_masks
+from .store import save_masks, load_masks, save
 
 from .distilling import BMDistill
 from .pruning import BMPrune
