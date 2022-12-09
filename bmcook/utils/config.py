@@ -16,7 +16,14 @@ default_values =  { "distillation": {
     "is_pruning": False,
     "pruning_mask_path": None,
     "pruned_module": ['[placehold]'],
-    "mask_method": "m4n2_1d/m4n2_2d",
+    "mask_method": "m4n2_1d/m4n2_2d/sprune",
+    "sprune": {
+        "criterion": "l0",
+        "training_mask": ['[placehold]'],
+        "fixed_mask_path": "",
+        "mask_mode": "train_mask",
+        "target_sparsity": 0.5
+    }
   },
 
   "quantization": {
@@ -27,7 +34,7 @@ default_values =  { "distillation": {
   "MoEfication": {
     "is_moefy": False,
     "first_FFN_module": ['[placehold]'],
-  }  
+  }
 }
 
 class ConfigParser:
