@@ -66,34 +66,43 @@ class Encoder(object):
             return None, None, None, 0
         data = line.strip()
         data = data.replace("<n>", "\n")
-        doc_ids = Encoder.tokenizer.encode(data)
-        if len(doc_ids) < 10:
-            return None, None, None, 0
-        # doc_ids.append(Encoder.tokenizer.eod_id)
-        span_start_ends = self.random_spans_noise_mask(
-            len(doc_ids), noisy_density=self.args.noisy_density, mean_noise_span_length=self.args.mean_noise_span_length)
-        start = 0
-        no_noise_tokens = []
-        noise_tokens = []
-        for i, span in enumerate(span_start_ends):
-            # "+[0]" placeholder for sentinel
-            no_noise_tokens.append(doc_ids[start:span[0]] + [0])
-            noise_tokens.append([0] + doc_ids[span[0]:span[1]]) # "[0]+" placeholder for sentinel
-            start = span[1]
 
-        target_offset_map = []
-        target_len = 0
-        for (k, context), target in zip(enumerate(no_noise_tokens), noise_tokens):
-            context[-1] = self.tokenizer.vocab_size + k
-            target[0] = self.tokenizer.vocab_size + k
-            target_offset_map.extend([target_len, len(target)])
-            target_len += len(target)
+        contexts = []
+        targets = []
 
-        no_noise_tokens = [x for y in no_noise_tokens for x in y]
+        # split data into multiple texts
+        words = data.split(" ")
+        while len(words) > self.args.max_seq_length:
 
-        noise_tokens = [x for y in noise_tokens for x in y]
+            doc_ids = Encoder.tokenizer.encode(" ".join(words[:self.args.max_seq_length]), max_length=self.args.max_seq_length-1, add_special_tokens=False)
 
-        return no_noise_tokens, noise_tokens, target_offset_map, len(line)
+            words = words[self.args.max_seq_length:]
+
+            if len(doc_ids) < 10:
+                continue
+
+            span_start_ends = self.random_spans_noise_mask(
+                len(doc_ids), noisy_density=self.args.noisy_density, mean_noise_span_length=self.args.mean_noise_span_length)
+
+            start = 0
+            context = []
+            target = []
+            for i, span in enumerate(span_start_ends):
+                # "+[0]" placeholder for sentinel
+                context.extend(doc_ids[start:span[0]] + [self.tokenizer.vocab_size-i-1])
+                target.extend([self.tokenizer.vocab_size-i-1] + doc_ids[span[0]:span[1]])
+                start = span[1]
+            
+            assert start == len(doc_ids)
+
+            target = [0] + target + [self.tokenizer.vocab_size-i-2, 1]
+            context += [1]
+
+            print(context, target)
+            contexts.append(context)
+            targets.append(target)
+
+        return contexts, targets, len(line)
 
     def random_spans_noise_mask(self, length, noisy_density=0.15, mean_noise_span_length=10.0):
         num_noise_tokens = round(length * noisy_density)
@@ -137,6 +146,7 @@ def get_args():
     group.add_argument('--log_interval', type=int, default=10000,
                        help='Interval between progress updates')
     group.add_argument('--noisy_density', type=float, default=0.15)
+    group.add_argument('--max_seq_length', type=int, default=512)
     group.add_argument('--mean_noise_span_length', type=int, default=3)
 
     args = parser.parse_args()
@@ -169,15 +179,11 @@ def main():
     context_idx_file = os.path.join(args.output_path,  "{}_{}_context.idx".format(args.output_prefix, level))
     target_bin_file = os.path.join(args.output_path,  "{}_{}_target.bin".format(args.output_prefix, level))
     target_idx_file = os.path.join(args.output_path,  "{}_{}_target.idx".format(args.output_prefix, level))
-    target_offset_bin_file = os.path.join(args.output_path,  "{}_{}_target_offset.bin".format(args.output_prefix, level))
-    target_offset_idx_file = os.path.join(args.output_path,  "{}_{}_target_offset.idx".format(args.output_prefix, level))
-    
 
     # set dtype == int64
     # max idx: 2 ** 63 - 1
     builder_context = indexed_dataset.make_builder(context_bin_file, impl=args.dataset_impl, dtype=np.int32)
     builder_target = indexed_dataset.make_builder(target_bin_file, impl=args.dataset_impl, dtype=np.int32)
-    builder_target_offset = indexed_dataset.make_builder(target_offset_bin_file, impl=args.dataset_impl, dtype=np.int32)
 
     startup_end = time.time()
     proc_start = time.time()
@@ -186,14 +192,14 @@ def main():
 
     # sentinel_idx = tokenizer.vocab_size # start from the last token of the tokenizer
     print("tokenizer vocab size:", tokenizer.vocab_size)
-    for i, (no_noise_tokens, noise_tokens, target_offset_map, bytes_processed) in enumerate(encoded_docs, start=1):
-        if no_noise_tokens is None or noise_tokens is None:
+    for i, (contexts, targets, bytes_processed) in enumerate(encoded_docs, start=1):
+        if len(contexts) == 0 or len(targets) == 0:
             continue
         total_bytes_processed += bytes_processed
 
-        builder_context.add_item(torch.IntTensor(no_noise_tokens))
-        builder_target.add_item(torch.IntTensor(noise_tokens))
-        builder_target_offset.add_item(torch.IntTensor(target_offset_map))
+        for tmp_context, temp_target in zip(contexts, targets):
+            builder_context.add_item(torch.IntTensor(tmp_context))
+            builder_target.add_item(torch.IntTensor(temp_target))
         
         if i % args.log_interval == 0:
             current = time.time()
@@ -205,7 +211,6 @@ def main():
 
     builder_context.finalize(context_idx_file)
     builder_target.finalize(target_idx_file)
-    builder_target_offset.finalize(target_offset_idx_file)
 
     pool.close()
 
