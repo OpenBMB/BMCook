@@ -73,7 +73,7 @@ def main():
     bmt.synchronize()
 
     # data
-    batch_size = 1
+    batch_size = 4
     ctx_len = 512
     tar_len = 256
 
@@ -101,6 +101,9 @@ def main():
         os.makedirs(save_dir / 'hiddens', exist_ok=True)
         model.eval()
 
+        hiddens_dir = save_dir / 'hiddens'
+        os.makedirs(hiddens_dir, exist_ok=True)
+
         for iteration, data in enumerate(Dataloader.batch_iter(dataset, batch_size, bmt.rank(), bmt.world_size())):
 
             if iteration == 100:
@@ -124,7 +127,7 @@ def main():
             with torch.no_grad():
                 outputs = CookTrainer.forward(model, loss_func, targets, enc_input, enc_length, dec_input, dec_length)
             
-            torch.save(outputs[-1], 'results/hiddens/' + '{}_{}'.format(iteration, bmt.rank()))
+            torch.save(outputs.moe_records, hiddens_dir / '{}_{}'.format(iteration, bmt.rank()))
                
             bmt.print_rank("Iteration:", iteration)
         exit()
@@ -162,7 +165,10 @@ def main():
             outputs = CookTrainer.forward(model, loss_func, targets, enc_input, enc_length, dec_input, dec_length)
 
             loss = outputs.loss
-            lag_loss, sparsity = bmt.sum_loss(outputs.lag_loss).item(), outputs.sparsity
+            if outputs.lag_loss != 0:
+                lag_loss, sparsity = bmt.sum_loss(outputs.lag_loss).item(), outputs.sparsity
+            else:
+                lag_loss, sparsity = 0, outputs.sparsity
             
             global_loss = bmt.sum_loss(loss).item()
             optim_manager.backward(loss + outputs.lag_loss)
@@ -184,7 +190,7 @@ def main():
                         global_loss-distill_loss,
                         distill_loss,
                         lr_scheduler.current_lr,
-                        int(optimizer.scale),
+                        int(optim_manager.loss_scale),
                         average_time / (1 - pow(average_time_shift, iteration + 1)),
                         lag_loss,
                         sparsity,

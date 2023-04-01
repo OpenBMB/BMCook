@@ -95,7 +95,7 @@ class Encoder(object):
             
             assert start == len(doc_ids)
 
-            target = [0] + target + [self.tokenizer.vocab_size-i-2, 1]
+            target = [0] + target + [self.tokenizer.vocab_size-i-2]
             context += [1]
 
             print(context, target)

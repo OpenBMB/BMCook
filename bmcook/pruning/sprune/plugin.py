@@ -40,7 +40,7 @@ class SPrunePlugin:
 
                 dim_head = module.self_att.self_attention.dim_head
                 num_heads = module.self_att.self_attention.num_heads
-                dim_model = module.self_att.self_attention.dim_model
+                dim_model = module.self_att.self_attention.dim_out
                 dim_ff = get_dim_ff(module.ffn.ffn)
                 
                 # model ststistics

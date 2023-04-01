@@ -1,4 +1,7 @@
 build/*
+docs/*
+bmcook.egg-info/*
+dist/*
 *.pyc
 *.bin
 *.so
