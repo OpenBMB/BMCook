@@ -33,123 +33,63 @@ class BMDistill:
             s_module_map, t_module_map = get_module_map(distill_config['mse_hidn_module'])
             update_forward(student, teacher, s_module_map, t_module_map)
 
-        if cls.version:
-            def forward(model, loss_func, targets, *model_args, **model_kwargs):
+        def forward(model, loss_func, targets, *model_args, **model_kwargs):
+            with bmt.inspect.inspect_tensor() as inspector:
+                outputs = foward_fn(
+                    model, loss_func, targets, *model_args, **model_kwargs
+                )
+                outputs_t = teacher(*model_args, **model_kwargs)
 
-                with bmt.inspect.inspect_tensor() as inspector:
-                    outputs = foward_fn(
-                        model, loss_func, targets, *model_args, **model_kwargs)
-                    outputs_t = teacher(*model_args, **model_kwargs)
+            records = {}
+            for record in inspector._summary:
+                records[record['name']] = record['tensor']
 
-                records = {}
-                for record in inspector._summary:
-                    records[record['name']] = record['tensor']
+            loss = outputs.loss
+            model_outputs = outputs.original_output
+            logits_s = model_outputs.logits
 
-                loss = outputs.loss
-                model_outputs = outputs.original_output
-                logits_s = model_outputs
+            # Compute loss and d_loss
+            d_loss = 0.0
+            if distill_config['ce_scale'] > 0:
+                temp = distill_config['ce_temp']
+                logits_t = outputs_t[0].detach()
+                prob_t = F.softmax(logits_t / temp, dim=-1)
+                log_prob_s = F.log_softmax(logits_s / temp, dim=-1)
+                d_loss += -(prob_t * log_prob_s).sum(dim=1).mean() * distill_config['ce_scale']
+        
+            # MSE loss 
+            if distill_config['mse_hidn_scale'] > 0:
+                for module_name in s_module_map:
+                    t_module_name = s_module_map[module_name]['t']['name']
+                    student_t = records[module_name+'_student']
+                    teacher_t = records[t_module_name+'_teacher'].detach()
 
-
-                # Compute loss and d_loss
-                d_loss = 0.0
-                if distill_config['ce_scale'] > 0:
-                    temp = distill_config['ce_temp']
-                    logits_t = outputs_t.detach()
-                    prob_t = F.softmax(logits_t / temp, dim=-1)
-                    log_prob_s = F.log_softmax(logits_s / temp, dim=-1)
-                    d_loss += -(prob_t * log_prob_s).sum(dim=1).mean() * distill_config['ce_scale']
-            
-                # MSE loss 
-                if distill_config['mse_hidn_scale'] > 0:
-                    for module_name in s_module_map:
-                        t_module_name = s_module_map[module_name]['t']['name']
-                        student_t = records[module_name+'_student']
-                        teacher_t = records[t_module_name+'_teacher'].detach()
-
-                        if distill_config['mse_hidn_proj']:
-                            if 'mapping' not in s_module_map[module_name]:
-                                t_dim = teacher_t.size(-1)
-                                s_dim = student_t.size(-1)
-                                # May be different on different devices
-                                
-                                s_module_map[module_name]['mapping'] = target_linear(t_dim, s_dim, init_std=0.02)
-                                bmt.init_parameters(s_module_map[module_name]['mapping'])
-                                s_module_map[module_name]['mapping'].to(teacher_t.device)
-                                bmt.synchronize()
+                    if distill_config['mse_hidn_proj']:
+                        if 'mapping' not in s_module_map[module_name]:
+                            t_dim = teacher_t.size(-1)
+                            s_dim = student_t.size(-1)
+                            # May be different on different devices
                             
-                            teacher_t = s_module_map[module_name]['mapping'](teacher_t)
-                            
-                        #normalize
-                        student_t_norm = student_t / (student_t.norm(dim=-1)).mean()
-                        teacher_t_norm = teacher_t / (teacher_t.norm(dim=-1)).mean()
+                            s_module_map[module_name]['mapping'] = target_linear(t_dim, s_dim, init_std=0.02)
+                            bmt.init_parameters(s_module_map[module_name]['mapping'])
+                            s_module_map[module_name]['mapping'].to(teacher_t.device)
+                            bmt.synchronize()
                         
-                        cur_loss = (student_t_norm - teacher_t_norm).pow(2).mean() * distill_config['mse_hidn_scale']
-                        d_loss += cur_loss
-                
-                loss = loss + d_loss
+                        teacher_t = s_module_map[module_name]['mapping'](teacher_t)
 
-                # update loss & append distillation loss
-                outputs.loss = loss
-                outputs.d_loss = d_loss
-                return outputs
-        else:
-            def forward(model, loss_func, targets, *model_args, **model_kwargs):
-
-                with bmt.inspect.inspect_tensor() as inspector:
-                    outputs = foward_fn(
-                        model, loss_func, targets, *model_args, **model_kwargs)    
-                    outputs_t = teacher(*model_args, **model_kwargs)
-
-                records = {}
-                for record in inspector._summary:
-                    records[record['name']] = record['tensor']
-
-                loss = outputs.loss
-                model_outputs = outputs.original_output
-                logits_s = model_outputs.logits
-
-                # Compute loss and d_loss
-                d_loss = 0.0
-                if distill_config['ce_scale'] > 0:
-                    temp = distill_config['ce_temp']
-                    logits_t = outputs_t[0].detach()
-                    prob_t = F.softmax(logits_t / temp, dim=-1)
-                    log_prob_s = F.log_softmax(logits_s / temp, dim=-1)
-                    d_loss += -(prob_t * log_prob_s).sum(dim=1).mean() * distill_config['ce_scale']
+                    #normalize
+                    student_t_norm = student_t / (student_t.norm(dim=-1)).mean()
+                    teacher_t_norm = teacher_t / (teacher_t.norm(dim=-1)).mean()
+                    
+                    cur_loss = (student_t_norm - teacher_t_norm).pow(2).mean() * distill_config['mse_hidn_scale']
+                    d_loss += cur_loss
             
-                # MSE loss 
-                if distill_config['mse_hidn_scale'] > 0:
-                    for module_name in s_module_map:
-                        t_module_name = s_module_map[module_name]['t']['name']
-                        student_t = records[module_name+'_student']
-                        teacher_t = records[t_module_name+'_teacher'].detach()
+            loss = loss + d_loss
 
-                        if distill_config['mse_hidn_proj']:
-                            if 'mapping' not in s_module_map[module_name]:
-                                t_dim = teacher_t.size(-1)
-                                s_dim = student_t.size(-1)
-                                # May be different on different devices
-                                
-                                s_module_map[module_name]['mapping'] = target_linear(t_dim, s_dim, init_std=0.02)
-                                bmt.init_parameters(s_module_map[module_name]['mapping'])
-                                s_module_map[module_name]['mapping'].to(teacher_t.device)
-                                bmt.synchronize()
-                            
-                            teacher_t = s_module_map[module_name]['mapping'](teacher_t)
-
-                        #normalize
-                        student_t_norm = student_t / (student_t.norm(dim=-1)).mean()
-                        teacher_t_norm = teacher_t / (teacher_t.norm(dim=-1)).mean()
-                        
-                        cur_loss = (student_t_norm - teacher_t_norm).pow(2).mean() * distill_config['mse_hidn_scale']
-                        d_loss += cur_loss
-                
-                loss = loss + d_loss
-
-                # update loss & append distillation loss
-                outputs.loss = loss
-                outputs.d_loss = d_loss
-                return outputs
+            # update loss & append distillation loss
+            outputs.loss = loss
+            outputs.d_loss = d_loss
+            return outputs
         return forward
 
 def get_module_info(info):

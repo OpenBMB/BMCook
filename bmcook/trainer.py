@@ -35,16 +35,6 @@ class CookOutput:
         self.sprune_plugin = sprune_plugin
         self.sprune_engine = sprune_engine
 
-def version_checker():
-    """
-    compatible with different ModelCenter version. (to help adjust the CookTrainer setup)
-
-    return True if the ModelCenter version is earlier than 0.1.3
-    """
-    result = subprocess.check_output('pip show model-center', shell=True)
-    version = parse_version(str(result).split('\\n')[1].split(' ')[-1])
-
-    return version <= parse_version('0.1.3')
 
 def remove_checkpointblock(model):
     """remove CheckpointBlock in bmtrain, to get access to the forward func"""
@@ -77,11 +67,6 @@ class CookTrainer:
     They are necessary for gradient backpropagation. CookTrainer will combine the original model outputs
     and these necessary variables and return to users together.
 
-    Args:
-        _is_old_modelcenter(`bool`): the model center version checker. After the version 0.1.5 of model-center,
-        the output is reformed as a  :class:`ModelOutput`. So CookTrainer will first check the model-center
-        version, then modify the outputs.
-    
     Example::
     >>> # setup the forward
     >>> CookTrainer.set_forward(your_cook_config, your_model, your_optimizer, your_teacher_model)
@@ -89,8 +74,6 @@ class CookTrainer:
     >>> # use the forward
     >>> outputs = CookTrainer.forward(your_model, your_inputs, your_loss_func)
     """
-
-    _is_old_modelcenter: bool = version_checker()
 
     @staticmethod
     def forward(model: Module, loss_func: Module, targets: Tensor, model_args: List, model_kwargs: OrderedDict) -> List:
@@ -142,28 +125,16 @@ class CookTrainer:
         elif 'output_logits' in model_args_list:
             model.forward = functools.partial(model.forward, output_logits=True)
 
-        if cls._is_old_modelcenter:
-            def forward(model, loss_func, targets, *model_args, **model_kwargs):
-                outputs = model(
-                    *model_args, **model_kwargs)
-                logits = outputs
-                batch, seq_len, vocab_out_size = logits.size()
+        def forward(model, loss_func, targets, *model_args, **model_kwargs):
+            outputs = model(
+                *model_args, **model_kwargs)
+            logits = outputs.logits
+            batch, seq_len, vocab_out_size = logits.size()
 
-                loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
-                
-                ret = CookOutput(loss, outputs)
-                return ret
-        else:
-            def forward(model, loss_func, targets, *model_args, **model_kwargs):
-                outputs = model(
-                    *model_args, **model_kwargs)
-                logits = outputs.logits
-                batch, seq_len, vocab_out_size = logits.size()
+            loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
 
-                loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
-
-                ret = CookOutput(loss, outputs)
-                return ret
+            ret = CookOutput(loss, outputs)
+            return ret
 
         forward_doc = cls.forward.__doc__
         cls.forward = forward
@@ -174,13 +145,11 @@ class CookTrainer:
             model = remove_checkpointblock(model)
 
         # for pruning
-        BMPrune.version = cls._is_old_modelcenter
         BMPrune.compute_mask(model, cook_config)
         cls.forward = BMPrune.set_forward_sprune(cls.forward)
         BMPrune.set_optim_for_pruning(optimizer)
 
         # for distillation
-        BMDistill.version = cls._is_old_modelcenter
         cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
 
         # for quantization
@@ -194,8 +163,6 @@ class CookTrainer:
 
 class CPMAntTrainer:
     r"""CookTrainer for CPM-Ant"""
-    
-    _is_old_modelcenter = version_checker()
 
     @staticmethod
     def forward(model, loss_func, targets, *model_args, **model_kwargs):
@@ -228,7 +195,6 @@ class CPMAntTrainer:
             BMQuant.quantize(model, cook_config)
 
         # for pruning
-        BMPrune.version = cls._is_old_modelcenter
         BMPrune.compute_mask(model, cook_config)
         cls.forward = BMPrune.set_forward_sprune(cls.forward)
         BMPrune.set_optim_for_pruning(optimizer)
@@ -238,7 +204,6 @@ class CPMAntTrainer:
             model = remove_checkpointblock(model)
 
         # for distillation
-        BMDistill.version = cls._is_old_modelcenter
         if target_linear is not None:
             cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config, target_linear)
         else:
