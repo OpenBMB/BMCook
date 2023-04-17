@@ -10,23 +10,23 @@ class BMDistill:
     '''
 
     @classmethod
-    def set_forward(cls, student, teacher, foward_fn, config, target_linear = Layer.Linear):
+    def set_forward(cls, student, teacher, forward_fn, config, target_linear = Layer.Linear):
         '''
         Modify the forward function of the student model to compute additional knowledge distillation loss.
 
-        `foward_fn` should have the following arguments: `foward_fn(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)`. These arguments are general for existing Transformers. For decoder-only model, `enc_input` and `enc_length` can be set to None. For encoder-only model, `dec_input` and `dec_length` can be set to None. Similarly, `student` and `teacher` models also have the following arguments: `model(enc_input, enc_length, dec_input, dec_length)`.
+        `forward_fn` should have the following arguments: `forward_fn(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)`. These arguments are general for existing Transformers. For decoder-only model, `enc_input` and `enc_length` can be set to None. For encoder-only model, `dec_input` and `dec_length` can be set to None. Similarly, `student` and `teacher` models also have the following arguments: `model(enc_input, enc_length, dec_input, dec_length)`.
 
         :param student: Student model.
         :param teacher: Teacher model.
-        :param foward_fn: Forward function of the student model.
+        :param forward_fn: Forward function of the student model.
         :param config: ConfigParser object.
-        :return: Modified forward function, whose return values are the original return values of `foward_fn` and additional knowledge distillation loss.
+        :return: Modified forward function, whose return values are the original return values of `forward_fn` and additional knowledge distillation loss.
         '''
 
         distill_config = config.get('distillation')
         if distill_config['ce_scale'] + distill_config['mse_hidn_scale'] + distill_config['mse_att_scale'] == 0:
             # if all scales are zero, return the original forward function
-            return foward_fn
+            return forward_fn
 
         if distill_config['mse_hidn_scale'] > 0:
             # if mse_hidn_scale is not zero, get the module mapping from the teacher model to the student model
@@ -37,7 +37,7 @@ class BMDistill:
 
         def forward(model, loss_func, targets, *model_args, **model_kwargs):
             with bmt.inspect.inspect_tensor() as inspector:
-                outputs = foward_fn(
+                outputs = forward_fn(
                     model, loss_func, targets, *model_args, **model_kwargs
                 )
                 outputs_t = teacher(*model_args, **model_kwargs)
