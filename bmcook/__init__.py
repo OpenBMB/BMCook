@@ -1,4 +1,4 @@
-from .trainer import CookTrainer, CPMAntTrainer
+from .trainer import CookTrainer
 from .store import save_masks, load_masks, save
 
 from .distilling import BMDistill

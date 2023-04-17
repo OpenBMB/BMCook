@@ -33,6 +33,8 @@ class BMDistill:
             s_module_map, t_module_map = get_module_map(distill_config['mse_hidn_module'])
             update_forward(student, teacher, s_module_map, t_module_map)
 
+        target_linear = Layer.Linear if target_linear is None else target_linear
+
         def forward(model, loss_func, targets, *model_args, **model_kwargs):
             with bmt.inspect.inspect_tensor() as inspector:
                 outputs = foward_fn(

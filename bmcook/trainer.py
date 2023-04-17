@@ -3,6 +3,7 @@ import inspect
 import subprocess
 import functools
 import bmtrain as bmt
+import model_center
 from typing import Optional, List
 from collections import OrderedDict
 from torch import Tensor
@@ -103,11 +104,16 @@ class CookTrainer:
 
         def forward(model, loss_func, targets, *model_args, **model_kwargs):
             outputs = model(
-                *model_args, **model_kwargs)
-            logits = outputs.logits
-            batch, seq_len, vocab_out_size = logits.size()
+                *model_args, **model_kwargs
+            )
+            if isinstance(outputs, model_center.model.ModelOutput):
+                logits = outputs.logits
+            elif isinstance(outputs, tuple):
+                logits = outputs[0]
+            else:
+                raise TypeError(f"model output should be model_center.model.ModelOutput or tuple, but got {type(outputs)}")
 
-            loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
+            loss = loss_func(logits.view(-1, logits.size(-1)), targets.view(-1))
 
             ret = CookOutput(loss, outputs)
             return ret
@@ -126,53 +132,6 @@ class CookTrainer:
 
         # for quantization
         BMQuant.quantize(model, cook_config)
-
-        # for moefication
-        cls.forward = BMMoE.get_hidden(model, cook_config, cls.forward)
-
-        bmt.synchronize()
-
-
-class CPMAntTrainer:
-    r"""CookTrainer for CPM-Ant"""
-
-    @staticmethod
-    def forward(model, loss_func, targets, *model_args, **model_kwargs):
-        raise AttributeError("The staticmethod forward() should be defined in :method:`set_forward`.")
-    
-    @classmethod
-    def set_compression(cls, cook_config, model, optimizer, teacher, remove_ckptblock: bool = True, target_linear = None):
-
-        def forward(model, loss_func, targets, *model_args, **model_kwargs):
-            outputs = model(
-                *model_args, **model_kwargs)
-            logits = outputs[0]
-
-            loss = loss_func(logits.view(-1, logits.size(-1)), targets.view(-1))
-
-            ret = CookOutput(loss, outputs)
-            
-            return ret
-        forward_doc = cls.forward.__doc__
-        cls.forward = forward
-        cls.forward.__doc__ = forward_doc
-
-        # for quantization
-        if target_linear is not None:
-            BMQuant.quantize(model, cook_config, target_linear)
-        else:
-            BMQuant.quantize(model, cook_config)
-
-        # for pruning
-        BMPrune.compute_mask(model, cook_config)
-        cls.forward = BMPrune.set_forward_sprune(cls.forward)
-        BMPrune.set_optim_for_pruning(optimizer)
-
-        # for distillation
-        if target_linear is not None:
-            cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config, target_linear)
-        else:
-            cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
 
         # for moefication
         cls.forward = BMMoE.get_hidden(model, cook_config, cls.forward)
