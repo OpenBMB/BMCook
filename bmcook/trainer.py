@@ -36,30 +36,6 @@ class CookOutput:
         self.sprune_engine = sprune_engine
 
 
-def remove_checkpointblock(model):
-    """remove CheckpointBlock in bmtrain, to get access to the forward func"""
-    for _, v in model.named_modules():
-
-        if isinstance(v, bmt.TransformerBlockList):
-
-            def new_func(list_self, hidden_states, *args):
-                for i in range(len(list_self._modules)):
-                    hidden_states = list_self._modules[str(i)](hidden_states, *args)
-                return hidden_states
-
-            v.forward = types.MethodType(new_func, v)
-
-            for k in v._modules.keys():
-                state_dict = v._modules[k].state_dict()
-                for kk, vv in v._modules[k]._module.named_modules():
-                    if kk+'.weight' in state_dict:
-                        vv.weight.data = state_dict[kk+'.weight'].clone().cuda()
-                    if kk+'.bias' in state_dict:
-                        vv.bias.data = state_dict[kk+'.bias'].clone().cuda()
-                v._modules[k] = v._modules[k]._module
-    return model
-
-
 class CookTrainer:
     r"""A basic training manager of BMCook.
 
@@ -96,7 +72,7 @@ class CookTrainer:
         raise NotImplementedError("The staticmethod forward() should be defined in :method:`set_forward`.")
 
     @classmethod
-    def set_compression(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None, remove_ckptblock: bool = True):
+    def set_compression(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None):
         r"""Define the :method:`forward`, and set up :class:`BMPrune`, :class:`BMDistill`, :class:`BMQuant`
         and :class:`BMMoE`.
 
@@ -140,10 +116,6 @@ class CookTrainer:
         cls.forward = forward
         cls.forward.__doc__ = forward_doc
 
-        # remove CheckpointBlock
-        if remove_ckptblock:
-            model = remove_checkpointblock(model)
-
         # for pruning
         BMPrune.compute_mask(model, cook_config)
         cls.forward = BMPrune.set_forward_sprune(cls.forward)
@@ -170,15 +142,12 @@ class CPMAntTrainer:
     
     @classmethod
     def set_compression(cls, cook_config, model, optimizer, teacher, remove_ckptblock: bool = True, target_linear = None):
-        # remove CheckpointBlock
 
         def forward(model, loss_func, targets, *model_args, **model_kwargs):
             outputs = model(
                 *model_args, **model_kwargs)
             logits = outputs[0]
-            # batch, seq_len, vocab_out_size = logits.size()
 
-            # loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
             loss = loss_func(logits.view(-1, logits.size(-1)), targets.view(-1))
 
             ret = CookOutput(loss, outputs)
@@ -198,10 +167,6 @@ class CPMAntTrainer:
         BMPrune.compute_mask(model, cook_config)
         cls.forward = BMPrune.set_forward_sprune(cls.forward)
         BMPrune.set_optim_for_pruning(optimizer)
-
-        # remove CheckpointBlock
-        if remove_ckptblock:
-            model = remove_checkpointblock(model)
 
         # for distillation
         if target_linear is not None:

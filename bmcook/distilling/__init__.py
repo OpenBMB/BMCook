@@ -137,38 +137,50 @@ def update_forward(student, teacher, s_module_map, t_module_map):
     for k, v in student.named_modules():
         if k in s_module_map:
             select_keys.add(k)
-            v.forward_old = v.forward
+            if isinstance(v, bmt.CheckpointBlock):
+                v.forward_old = v._module.forward
+            else:
+                v.forward_old = v.forward
             v.inspect_name = k+'_student'
-            
+
             if s_module_map[k]['s']['type'] == 'pre':
-                def _forward(module_self, x):
+                def _forward(module_self, x, *args, **kwargs):
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
-                    return module_self.forward_old(x)
-            
+                    return module_self.forward_old(x, *args, **kwargs)
+
             elif s_module_map[k]['s']['type'] == 'post':
-                def _forward(module_self, x):
-                    x = module_self.forward_old(x)
+                def _forward(module_self, x, *args, **kwargs):
+                    x = module_self.forward_old(x, *args, **kwargs)
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
                     return x
-            
-            v.forward = types.MethodType(_forward, v)
+
+            if isinstance(v, bmt.CheckpointBlock):
+                v._module.forward = types.MethodType(_forward, v)
+            else:
+                v.forward = types.MethodType(_forward, v)
 
     for k, v in teacher.named_modules():
         if k in t_module_map:
             select_keys.add(k)
-            v.forward_old = v.forward
+            if isinstance(v, bmt.CheckpointBlock):
+                v.forward_old = v._module.forward
+            else:
+                v.forward_old = v.forward
             v.inspect_name = k+'_teacher'
 
             if t_module_map[k]['t']['type'] == 'pre':
-                def _forward(module_self, x):
+                def _forward(module_self, x, *args, **kwargs):
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
-                    return module_self.forward_old(x)
+                    return module_self.forward_old(x, *args, **kwargs)
 
             elif t_module_map[k]['t']['type'] == 'post':
-                def _forward(module_self, x):
-                    x = module_self.forward_old(x)
+                def _forward(module_self, x, *args, **kwargs):
+                    x = module_self.forward_old(x, *args, **kwargs)
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
                     return x
-            
-            v.forward = types.MethodType(_forward, v)
-    bmt.print_rank('Selected modules for hidden state MSE: {}'.format(select_keys))                        
+
+            if isinstance(v, bmt.CheckpointBlock):
+                v._module.forward = types.MethodType(_forward, v)
+            else:
+                v.forward = types.MethodType(_forward, v)
+    bmt.print_rank('Selected modules for hidden state MSE: {}'.format(select_keys))
