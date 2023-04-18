@@ -1,6 +1,4 @@
-import types
 import inspect
-import subprocess
 import functools
 import bmtrain as bmt
 import model_center

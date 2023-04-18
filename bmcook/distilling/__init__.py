@@ -1,4 +1,5 @@
 import types
+import torch
 import bmtrain as bmt
 import torch.nn.functional as F
 import model_center.layer as Layer
@@ -40,7 +41,8 @@ class BMDistill:
                 outputs = forward_fn(
                     model, loss_func, targets, *model_args, **model_kwargs
                 )
-                outputs_t = teacher(*model_args, **model_kwargs)
+                with torch.no_grad():
+                    outputs_t = teacher(*model_args, **model_kwargs)
 
             records = {}
             for record in inspector._summary:
