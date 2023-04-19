@@ -239,15 +239,17 @@ Combine quantization, pruning and knowledge distillation：
 
 ## Performances
 
-Based on GPT-J, we evaluate different combinations of compression techniques. The corpus is OpenWebText. We also train a small GPT-J with 0.7B parameters based on this corpus from scratch, GPT-J (0.7B).
+Based on T5-3B, we evaluate different combinations of compression techniques. The corpus for compression is the Pile. The evaluation datasets includes SST-2, MNLI, and SQuAD. Specifically, we freeze the compressed models and adopt adapter-tuning.
 
-|                        |     LM Loss    |     Relative Performance    |     Speedup    |
+|                        |     Average Performance    |     Relative Performance    |     Speedup    |
 |------------------------|----------------|-----------------------------|----------------|
-|     GPT-J              |           3.37 |                        -    |          1x    |
-|     GPT-J (0.7B)       |           4.06 |                       83.0% |         ~10x   |
-|     GPT-J (P+D)        |           3.57 |                       94.4% |          2x    |
-|     GPT-J (P+D+Q)      |           3.58 |                       94.1% |          8x    |
-|     GPT-J (P+D+Q+M)    |           3.69 |                       91.3% |          10x   |
+|     T5-3B              |           0.9258 |                        -    |          1x    |
+|     T5-Base       |           0.8796 |                       95.0% |         7x   |
+|     T5-3B (P+D)        |           0.9150 |                       98.8% |          2x    |
+|     T5-3B (P+D+Q)      |           0.9126 |                       98.6% |          8x    |
+|     T5-3B (P+D+Q+M)    |           0.9017 |                       97.4% |          12x   |
+
+
 
 D denotes knowledge distillation. P denotes pruning. Q denotes quantization. M denotes MoEfication.
 

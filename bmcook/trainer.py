@@ -71,7 +71,7 @@ class CookTrainer:
         raise NotImplementedError("The staticmethod forward() should be defined in :method:`set_forward`.")
 
     @classmethod
-    def set_compression(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None):
+    def set_compression(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None, remove_ckptblock: bool = True):
         r"""Define the :method:`forward`, and set up :class:`BMPrune`, :class:`BMDistill`, :class:`BMQuant`
         and :class:`BMMoE`.
 
@@ -116,6 +116,7 @@ class CookTrainer:
             ret = CookOutput(loss, outputs)
             return ret
 
+
         forward_doc = cls.forward.__doc__
         cls.forward = forward
         cls.forward.__doc__ = forward_doc
@@ -135,3 +136,4 @@ class CookTrainer:
         cls.forward = BMMoE.get_hidden(model, cook_config, cls.forward)
 
         bmt.synchronize()
+

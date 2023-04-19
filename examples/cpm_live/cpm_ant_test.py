@@ -66,11 +66,11 @@ def main():
 
         # ===========
         outputs = CPMAntTrainer.forward(model, loss_func, targets, input_idx, input_length, input_context, input_position, input_segment, input_span)
-        loss, lag_loss, sparsity, d_loss, moe_records = outputs[0], outputs[2], outputs[3], outputs[4], outputs[5]
-        global_loss = bmt.sum_loss(loss - d_loss - lag_loss).item()
+        loss, lag_loss, sparsity, d_loss = outputs.loss, outputs.lag_loss, outputs.sparsity, outputs.d_loss
+        global_loss = bmt.sum_loss(loss - d_loss).item()
 
         # ===========
-        loss = optimizer.loss_scale(loss)
+        loss = optimizer.loss_scale(loss) + lag_loss
         loss.backward()
         
         # ===========

@@ -158,14 +158,14 @@ def main():
 
             outputs = CookTrainer.forward(model, loss_func, targets, enc_input, enc_length, dec_input, dec_length)
 
-            loss = outputs[0]
-            lag_loss, sparsity = outputs[2], outputs[3]
+            loss = outputs.loss
+            lag_loss, sparsity = bmt.sum_loss(outputs.lag_loss).item(), outputs.sparsity
             
             global_loss = bmt.sum_loss(loss).item()
-            loss = optimizer.loss_scale(loss)
+            loss = optimizer.loss_scale(loss) + outputs.lag_loss
 
             if do_distill:
-                distill_loss = bmt.sum_loss(outputs[4]).item()
+                distill_loss = bmt.sum_loss(outputs.d_loss).item()
             else:
                 distill_loss = 0
             
@@ -180,7 +180,7 @@ def main():
                 bmt.print_rank(
                     "| Iter: {:6d} | loss: {:.4f} | kd_loss: {:.4f} | lr: {:.4e}, scale: {:10.4f} | time: {:.4f} | lag_loss: {:.4f} | sparsity: {:.4f}".format(
                         iteration,
-                        global_loss-distill_loss-lag_loss,
+                        global_loss-distill_loss,
                         distill_loss,
                         lr_scheduler.current_lr,
                         int(optimizer.scale),
