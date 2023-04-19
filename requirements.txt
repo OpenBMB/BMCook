@@ -1,0 +1,3 @@
+bmtrain>=0.2.0
+model_center>=0.1.5
+cpm_kernels

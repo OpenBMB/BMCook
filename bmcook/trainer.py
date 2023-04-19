@@ -1,8 +1,7 @@
-import types
 import inspect
-import subprocess
 import functools
 import bmtrain as bmt
+import model_center
 from typing import Optional, List
 from collections import OrderedDict
 from torch import Tensor
@@ -35,40 +34,6 @@ class CookOutput:
         self.sprune_plugin = sprune_plugin
         self.sprune_engine = sprune_engine
 
-def version_checker():
-    """
-    compatible with different ModelCenter version. (to help adjust the CookTrainer setup)
-
-    return True if the ModelCenter version is earlier than 0.1.3
-    """
-    result = subprocess.check_output('pip show model-center', shell=True)
-    version = parse_version(str(result).split('\\n')[1].split(' ')[-1])
-
-    return version <= parse_version('0.1.3')
-
-def remove_checkpointblock(model):
-    """remove CheckpointBlock in bmtrain, to get access to the forward func"""
-    for _, v in model.named_modules():
-
-        if isinstance(v, bmt.TransformerBlockList):
-
-            def new_func(list_self, hidden_states, *args):
-                for i in range(len(list_self._modules)):
-                    hidden_states = list_self._modules[str(i)](hidden_states, *args)
-                return hidden_states
-
-            v.forward = types.MethodType(new_func, v)
-
-            for k in v._modules.keys():
-                state_dict = v._modules[k].state_dict()
-                for kk, vv in v._modules[k]._module.named_modules():
-                    if kk+'.weight' in state_dict:
-                        vv.weight.data = state_dict[kk+'.weight'].clone().cuda()
-                    if kk+'.bias' in state_dict:
-                        vv.bias.data = state_dict[kk+'.bias'].clone().cuda()
-                v._modules[k] = v._modules[k]._module
-    return model
-
 
 class CookTrainer:
     r"""A basic training manager of BMCook.
@@ -77,11 +42,6 @@ class CookTrainer:
     They are necessary for gradient backpropagation. CookTrainer will combine the original model outputs
     and these necessary variables and return to users together.
 
-    Args:
-        _is_old_modelcenter(`bool`): the model center version checker. After the version 0.1.5 of model-center,
-        the output is reformed as a  :class:`ModelOutput`. So CookTrainer will first check the model-center
-        version, then modify the outputs.
-    
     Example::
     >>> # setup the forward
     >>> CookTrainer.set_forward(your_cook_config, your_model, your_optimizer, your_teacher_model)
@@ -89,8 +49,6 @@ class CookTrainer:
     >>> # use the forward
     >>> outputs = CookTrainer.forward(your_model, your_inputs, your_loss_func)
     """
-
-    _is_old_modelcenter: bool = version_checker()
 
     @staticmethod
     def forward(model: Module, loss_func: Module, targets: Tensor, model_args: List, model_kwargs: OrderedDict) -> List:
@@ -142,45 +100,33 @@ class CookTrainer:
         elif 'output_logits' in model_args_list:
             model.forward = functools.partial(model.forward, output_logits=True)
 
-        if cls._is_old_modelcenter:
-            def forward(model, loss_func, targets, *model_args, **model_kwargs):
-                outputs = model(
-                    *model_args, **model_kwargs)
-                logits = outputs
-                batch, seq_len, vocab_out_size = logits.size()
-
-                loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
-                
-                ret = CookOutput(loss, outputs)
-                return ret
-        else:
-            def forward(model, loss_func, targets, *model_args, **model_kwargs):
-                outputs = model(
-                    *model_args, **model_kwargs)
+        def forward(model, loss_func, targets, *model_args, **model_kwargs):
+            outputs = model(
+                *model_args, **model_kwargs
+            )
+            if isinstance(outputs, model_center.model.ModelOutput):
                 logits = outputs.logits
-                batch, seq_len, vocab_out_size = logits.size()
+            elif isinstance(outputs, tuple):
+                logits = outputs[0]
+            else:
+                raise TypeError(f"model output should be model_center.model.ModelOutput or tuple, but got {type(outputs)}")
 
-                loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
+            loss = loss_func(logits.view(-1, logits.size(-1)), targets.view(-1))
 
-                ret = CookOutput(loss, outputs)
-                return ret
+            ret = CookOutput(loss, outputs)
+            return ret
+
 
         forward_doc = cls.forward.__doc__
         cls.forward = forward
         cls.forward.__doc__ = forward_doc
 
-        # remove CheckpointBlock
-        if remove_ckptblock:
-            model = remove_checkpointblock(model)
-
         # for pruning
-        BMPrune.version = cls._is_old_modelcenter
         BMPrune.compute_mask(model, cook_config)
         cls.forward = BMPrune.set_forward_sprune(cls.forward)
         BMPrune.set_optim_for_pruning(optimizer)
 
         # for distillation
-        BMDistill.version = cls._is_old_modelcenter
         cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
 
         # for quantization
@@ -191,60 +137,3 @@ class CookTrainer:
 
         bmt.synchronize()
 
-
-class CPMAntTrainer:
-    r"""CookTrainer for CPM-Ant"""
-    
-    _is_old_modelcenter = version_checker()
-
-    @staticmethod
-    def forward(model, loss_func, targets, *model_args, **model_kwargs):
-        raise AttributeError("The staticmethod forward() should be defined in :method:`set_forward`.")
-    
-    @classmethod
-    def set_compression(cls, cook_config, model, optimizer, teacher, remove_ckptblock: bool = True, target_linear = None):
-        # remove CheckpointBlock
-
-        def forward(model, loss_func, targets, *model_args, **model_kwargs):
-            outputs = model(
-                *model_args, **model_kwargs)
-            logits = outputs[0]
-            # batch, seq_len, vocab_out_size = logits.size()
-
-            # loss = loss_func(logits.view(batch * seq_len, vocab_out_size), targets.view(batch * seq_len))
-            loss = loss_func(logits.view(-1, logits.size(-1)), targets.view(-1))
-
-            ret = CookOutput(loss, outputs)
-            
-            return ret
-        forward_doc = cls.forward.__doc__
-        cls.forward = forward
-        cls.forward.__doc__ = forward_doc
-
-        # for quantization
-        if target_linear is not None:
-            BMQuant.quantize(model, cook_config, target_linear)
-        else:
-            BMQuant.quantize(model, cook_config)
-
-        # for pruning
-        BMPrune.version = cls._is_old_modelcenter
-        BMPrune.compute_mask(model, cook_config)
-        cls.forward = BMPrune.set_forward_sprune(cls.forward)
-        BMPrune.set_optim_for_pruning(optimizer)
-
-        # remove CheckpointBlock
-        if remove_ckptblock:
-            model = remove_checkpointblock(model)
-
-        # for distillation
-        BMDistill.version = cls._is_old_modelcenter
-        if target_linear is not None:
-            cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config, target_linear)
-        else:
-            cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
-
-        # for moefication
-        cls.forward = BMMoE.get_hidden(model, cook_config, cls.forward)
-
-        bmt.synchronize()

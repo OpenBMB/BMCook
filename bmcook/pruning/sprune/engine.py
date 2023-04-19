@@ -2,23 +2,30 @@ import torch
 import bmtrain as bmt
 from typing import Dict
 from torch.nn.parameter import Parameter
-from .func import determinate_mask, sample, binarize
-from .plugin import SPrunePlugin
-from .utils import get_params_from_block
+from .func import determinate_mask, sample, binarize, from_sparsity
+from .plugin import SPrunePlugin, UnitList
 
 
 class SPruneStrategy:
     def __init__(self, config: Dict) -> None:
         self.criterion = config['criterion']
         assert self.criterion == 'l0', "BMCook sprune do not support other criterions besides l0 yet."
-        self.fixed_mask_path = config['fixed_mask_path']
+        self.mask_path = config['mask_path']
         self.training_mask = config['training_mask']
-        self.mask_mode = config['mask_mode']
+        self.is_training = config['is_training']
         self.target_mode = config['target_mode']
         self.target_sparsity = config['target_sparsity']
+        self.start_sparsity = config['start_sparsity']
+        self.hard_binarize = config['hard_binarize']
+        self.tuning = config['tuning']
+        if self.tuning is True:
+            self.iterative = self.tuning['iterative']
+            self.interval = self.tuning['interval']
+            self.ratio = self.tuning['ratio']
+        
 
 
-class SPruneEngine:
+class SPruneEngine(bmt.DistributedModule):
     r"""
     SPruneEngine is used for the mask computation and update of SPrunePlugin.
 
@@ -27,7 +34,7 @@ class SPruneEngine:
         For lagrangian term in PLM structure pruning, see paper "Structured Pruning of Large Language Models" 
         <https://arxiv.org/abs/1910.04732>.
     """
-    def __init__(self, config: Dict, plugin: SPrunePlugin) -> None:
+    def __init__(self, strategy: SPruneStrategy, plugin: SPrunePlugin) -> None:
         r"""Init the SpruneEngine from a SPrunePlugin. It will initilize all the :class:`torch.nn.Parameter`
         used for learning the sprune mask, and create the optimizer for l0 regularization.
 
@@ -36,19 +43,29 @@ class SPruneEngine:
             plugin: `(SPrunePlugin)`, the SPrunePlugin.
         """
         super().__init__()
-        self.strategy = SPruneStrategy(config)
+        self.strategy = strategy
         self.target_sparsity = self.strategy.target_sparsity
+        self.is_training = self.strategy.is_training
         self.plugin = plugin
         self.training = True
+        
+        if self.is_training:
+            start_loga = from_sparsity(self.strategy.start_sparsity)
 
-        self.lambda_1 = Parameter(torch.tensor(0., dtype=torch.float, device='cuda'))
-        self.lambda_2 = Parameter(torch.tensor(0., dtype=torch.float, device='cuda'))
-        self.training_loga = {}
-        for mask in self.strategy.training_mask:
-            shape = self.plugin.info_to_engine['shape'][mask]
-            self.training_loga[mask+'_loga'] = Parameter(torch.empty(shape[0], dtype=torch.float, device='cuda').normal_(0., 1e-2))
+            self.lambda_1 = Parameter(torch.tensor(0., dtype=torch.float, device='cuda'))
+            self.lambda_2 = Parameter(torch.tensor(0., dtype=torch.float, device='cuda'))
 
-        self.create_sprune_optimizer()
+            for mask in self.strategy.training_mask:
+                unitlist: UnitList = getattr(self.plugin, mask)
+                setattr(self, mask+'_loga', Parameter(torch.empty((len(unitlist), unitlist.get_max_dim()), dtype=torch.float).normal_(start_loga, 1e-2)))
+            self.create_sprune_optimizer()
+
+        else:
+            param_exp, param_all = 0, 0
+            for transformer_unit in self.plugin:
+                param_exp += transformer_unit.get_param_exp()
+                param_all += transformer_unit.get_param_all()
+            self.sparsity = 1 - param_exp / param_all
 
     def create_sprune_optimizer(self):
         r"""Create the sprune optimizer and lagrangian optimizer, making the learning of loga and 
@@ -59,130 +76,73 @@ class SPruneEngine:
         lagrangian optimizer will manage the lagrangian terms.
         """
         l0_params = [{
-                        "params": [p for _, p in self.training_loga.items()],
+                        "params": [p for n, p in self.named_parameters() if '_loga' in n],
                         "weight_decay": 0.0,
                         "lr": 0.1
                         }]
-        self.sp_optimizer = torch.optim.AdamW(l0_params)
+        self.sp_optimizer = torch.optim.AdamW(l0_params) if self.is_training else None
 
         lagrangian_params = [{
                     "params": [self.lambda_1, self.lambda_2],
                     "weight_decay": 0.0,
                     "lr": -0.1
                 }]
-        self.lagrangian_optimizer = torch.optim.AdamW(lagrangian_params)
+        self.lagrangian_optimizer = torch.optim.AdamW(lagrangian_params) if self.is_training else None
     
     def update(self):
         r"""
         update the sprune parameters and lagrangian parameters.
         """
-        if self.training:
-            info_list = self.update_plugin_mask(training=True)
-            loss, sparsity = self.loss(info_list)
+        if self.is_training:
+            sparsity = self.forward(True)
+            loss = self.get_loss(sparsity)
             if torch.abs(sparsity - self.target_sparsity) < 5e-5:
                 bmt.print_rank("binarize the mask and begin finetune...")
-                info_list = self.update_plugin_mask(training=False)
-                self.lambda_1.requires_grad_(False)
-                self.lambda_2.requires_grad_(False)
-                for v in self.training_loga.values():
+                sparsity = self.forward(False)
+                for v in self.parameters():
                     v.requires_grad_(False)
                 self.training = False
+            return loss, sparsity
         else:
-            info_list = self.update_plugin_mask(training=False)
-            loss, sparsity = self.loss(info_list)
-        return loss, sparsity
+            return torch.tensor(0), torch.tensor(-1000)
 
-    def step(self):
-        r"""run :method:`.step()` of sprune optimizer and lagrangian optimizer"""
-        self.sp_optimizer.step()
-        self.lagrangian_optimizer.step()
-    
-    def zero_grad(self):
-        r"""run :method:`.zero_grad()` of sprune optimizer and lagrangian optimizer"""
-        self.sp_optimizer.zero_grad()
-        self.lagrangian_optimizer.zero_grad()
-
-    def loss(self, info_list):
-        r"""calculate the lagrangian loss. It can be calculated in sparsity(`float`) or dimension(`int`)"""
-        if self.strategy.target_mode == 'sparsity':
-            return self.lagrangian_loss_sparsity(info_list, layer_constraint=False)
-        elif self.strategy.target_mode == 'dimension':
-            return self.lagrangian_loss_dimension()
-
-    def update_plugin_mask(self, training: bool = True):
-        r"""update the mask managed in plugin"""
-        info_list = {}
-        for k, v in self.training_loga.items():
+    def forward(self, training: bool = True):
+        for k, v in self.named_parameters():
+            if "loga" not in k:
+                continue
             module = k.split('_loga')[0]
 
             mask = sample(v) if training is True else binarize(v)
             train_mask = determinate_mask(v)
-            assert mask.size(0) == train_mask.size(0)
             
             for index in range(mask.size(0)):
-                self.plugin.__dict__[module][index]['mask'] = mask[index].clone().detach()
-                
-                param = self.plugin.__dict__[module][index]['param']
-                index_all = self.plugin.__dict__[module][index]['index']
+                unit_list = getattr(self.plugin, module)
+                unit_list[index].mask = mask[index].clone().detach()
+                unit_list[index].density = train_mask[index].squeeze(-1).sum() if train_mask[index].size(-1) == 1 else train_mask[index].sum()
 
-                if index_all not in info_list:
-                    info_list[index_all] = {'module': [module], 'param': [param], 'score': [train_mask[index]]}
-                else:
-                    if module in info_list[index_all]['module']:
-                        module_correct = 'cross_' + module
-                    else:
-                        module_correct = module
-                    info_list[index_all]['module'].append(module_correct)
-                    info_list[index_all]['param'].append(param)
-                    info_list[index_all]['score'].append(train_mask[index])
+        
+        param_exp, param_all = 0, 0
+        for transformer_unit in self.plugin:
+            param_exp += transformer_unit.get_param_exp()
+            param_all += transformer_unit.get_param_all()
 
-        return info_list
+        expected_sparsity = 1 - param_exp / param_all
 
-    def lagrangian_loss_sparsity(self, info_list, layer_constraint: bool = False):
-        r"""The func 'lagrangian_loss_sparsity' is to calculate the lagrangian loss to get the target sparsity"""
-        expected_sparsity = get_params_from_block(info_list)
+        return expected_sparsity
+    
+    def get_loss(self, expected_sparsity):
         loss_sparsity = expected_sparsity - self.target_sparsity
-        if layer_constraint:
-            loss_sparsity = torch.mean(torch.abs(loss_sparsity))
-            expected_sparsity = torch.mean(expected_sparsity)
-
         lagrangian_loss = self.lambda_1 * loss_sparsity + self.lambda_2 * (loss_sparsity ** 2)
+        return lagrangian_loss
 
-        return lagrangian_loss, expected_sparsity
+    def save(self, file_name: str):
+        for k, v in self.named_parameters():
+            if "loga" not in k:
+                continue
+            module = k.split('_loga')[0]
+            mask = binarize(v, hard_binarize=self.strategy.hard_binarize, target_s=self.target_sparsity)
 
-    def lagrangian_loss_dimension(self):
-        r"""calculate the lagrangian loss to get the target dimension"""
-        dimension_score = determinate_mask(self.training_loga)
-        all_dimension = dimension_score.size(1)
-        
-        expected_dimension = torch.sum(dimension_score, -1)
-        loss_dimension = torch.sum((self.target_dimension - expected_dimension) / all_dimension)
-        
-        lagrangian_loss = self.lambda_1 * loss_dimension + self.lambda_2 * (loss_dimension ** 2)
-        
-        return lagrangian_loss, expected_dimension
-
-    def get_model_sparsity(self, layer_constraint: bool = False):
-        r"""calculate the current sparsity to calculate lagrangian loss."""
-        if not layer_constraint:
-            total_res = 0
-            num_res = 0
-            for k, v in self.training_loga.items():
-                # layer-wise
-                for layer_index in range(v.size(0)):
-                    param = self.plugin.__dict__[k.split('_loga')[0]][layer_index]['param']
-                    v_cur = v[layer_index]
-
-                    total_res +=  torch.sum(determinate_mask(v_cur)) * param * 3
-                    num_res   +=  v_cur.numel() * param * 3
-            ratio = total_res / num_res
-        else:
-            ratio = []
-            for k, v in self.training_loga.items():
-                # layer-wise
-                for layer_index in range(v.size(0)):
-                    param = self.plugin.__dict__[k.split('_loga')[0]][layer_index]['param']
-                    v_cur = v[layer_index]
-                    ratio.append(torch.sum(determinate_mask(v_cur)) / v_cur.numel())
-                ratio = torch.stack(ratio)
-        return 1 - ratio  # return sparsity
+            for index in range(mask.size(0)):
+                unit_list = getattr(self.plugin, module)
+                unit_list[index].mask = mask[:, None][index].clone().detach()
+        self.plugin.save_masks(file_name)

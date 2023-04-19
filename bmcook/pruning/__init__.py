@@ -6,7 +6,7 @@ import os
 import json
 from bmtrain.block_layer import storage_type_cuda, round_up
 from .prune_func import m4n2_1d, m4n2_2d_greedy
-from .sprune import SPruneEngine, SPrunePlugin
+from .sprune import SPruneEngine, SPrunePlugin, SPruneStrategy
 
 
 def get_trivial_mask(p):
@@ -101,10 +101,12 @@ class BMPrune:
             func = m4n2_2d_greedy
         elif prune_config['mask_method'] == 'sprune':
             sprune_config = prune_config['sprune']
-            plugin = SPrunePlugin(model)
-            cls.sprune_engine = SPruneEngine(sprune_config, plugin)
+            mask_path = sprune_config['mask_path']
+            strategy = SPruneStrategy(config=sprune_config)
+            plugin = SPrunePlugin(strategy.training_mask, model, saved_path=mask_path)
+            cls.sprune_engine = SPruneEngine(strategy, plugin)
             cls._sprune = True
-            return
+            return 
         else:
             raise ValueError("Unknown mask method: {}".format(prune_config['mask_method']))
 
@@ -177,8 +179,6 @@ class BMPrune:
                 loss = outputs.loss
 
                 lag_loss, sparsity = cls.sprune_engine.update()
-                # lag_loss should not be scaled
-                # loss += lag_loss
                 
                 outputs.loss, outputs.lag_loss, outputs.sparsity = loss, lag_loss, sparsity
                 return outputs
@@ -228,7 +228,7 @@ class BMPrune:
                             p.mul_(tmp_mask)
                 return rval
             cls._optimizer.step = types.MethodType(_step, cls._optimizer)
-        else:
+        elif cls.sprune_engine.is_training:
             cls._optimizer.zero_grad_old = optimizer.zero_grad
 
             def _step(opt_self, *args, **kwargs):
