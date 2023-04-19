@@ -155,6 +155,7 @@ def update_forward(student, teacher, s_module_map, t_module_map):
             elif s_module_map[k]['s']['type'] == 'post':
                 def _forward(module_self, x, *args, **kwargs):
                     x = module_self.forward_old(x, *args, **kwargs)
+                    assert isinstance(x, torch.Tensor)
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
                     return x
 
@@ -180,6 +181,7 @@ def update_forward(student, teacher, s_module_map, t_module_map):
             elif t_module_map[k]['t']['type'] == 'post':
                 def _forward(module_self, x, *args, **kwargs):
                     x = module_self.forward_old(x, *args, **kwargs)
+                    assert isinstance(x, torch.Tensor)
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
                     return x
 
