@@ -76,7 +76,7 @@ class CookTrainer:
         and :class:`BMMoE`.
 
         :class:`BMPrune` should be ahead of :class:`BMDistill`, because the :method:`forward` is 
-        chenged in both :class:`BMPrune` and :class:`BMDistill`.
+        changed in both :class:`BMPrune` and :class:`BMDistill`.
 
         The output format: `[loss, logits, lag_loss, sparsity, distill_loss]`
 
