@@ -58,17 +58,17 @@ def main():
     tokenizer = GPT2Tokenizer.from_pretrained('gpt2-medium')
     pool = multiprocessing.Pool(args.workers, initializer=encoder.initializer)
 
-    def pack_doc(fin):
-        doc = ""
-        for line in fin:
-            if line == "\n":
-                if len(doc) > 0:
-                    yield doc
-                doc = ""
-            else:
-                doc += " " + line.strip()
+    # def pack_doc(fin):
+    #     doc = ""
+    #     for line in fin:
+    #         if line == "\n":
+    #             if len(doc) > 0:
+    #                 yield doc
+    #             doc = ""
+    #         else:
+    #             doc += " " + line.strip()
 
-    encoded_docs = pool.imap(encoder.encode, pack_doc(fin), 25)
+    encoded_docs = pool.imap(encoder.encode, fin, 25)
 
     level = "document"
 

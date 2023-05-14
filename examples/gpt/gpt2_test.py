@@ -39,11 +39,13 @@ class Dataloader:
 from model_center.model import GPT2Config, GPT2
 
 config_map = {
-    'gpt2-large': GPT2Config
+    'gpt2-large': GPT2Config,
+    'gpt2-base': GPT2Config
 }
 
 model_map = {
-    'gpt2-large': GPT2
+    'gpt2-large': GPT2,
+    'gpt2-base': GPT2
 }
 
 def main():
@@ -137,7 +139,11 @@ def main():
             outputs = CookTrainer.forward(model, loss_func, targets, dec_input, dec_length)
 
             loss = outputs.loss
-            lag_loss, sparsity = bmt.sum_loss(outputs.lag_loss).item(), outputs.sparsity
+            if outputs.lag_loss != 0:
+                lag_loss, sparsity = bmt.sum_loss(outputs.lag_loss).item(), outputs.sparsity
+            else:
+                lag_loss, sparsity = 0, outputs.sparsity
+
             global_loss = bmt.sum_loss(loss).item()
             optim_manager.backward(loss + outputs.lag_loss)
 
@@ -161,7 +167,7 @@ def main():
                         global_loss-distill_loss,
                         distill_loss,
                         lr_scheduler.current_lr,
-                        int(optim_manager.scale),
+                        int(optim_manager.loss_scale),
                         average_time / (1 - pow(average_time_shift, iteration + 1)),
                         lag_loss,
                         sparsity
