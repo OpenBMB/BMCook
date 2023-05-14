@@ -67,8 +67,11 @@ def main():
     dec_len = 512
 
     loss_func = torch.nn.CrossEntropyLoss(ignore_index=-100)
-    optimizer = bmt.optim.AdamOptimizer(model.parameters(), scale=2**20)
+    optimizer = bmt.optim.AdamOptimizer(model.parameters())
     lr_scheduler = bmt.lr_scheduler.Noam(optimizer, start_lr=args.start_lr, warmup_iter=2000, end_iter=100000)
+
+    optim_manager = bmt.optim.OptimManager(loss_scale=2**20)
+    optim_manager.add_optimizer(optimizer, lr_scheduler)
 
     config = ConfigParser(args.cook_config)
     CookTrainer.set_compression(config, model, optimizer, teacher)
@@ -120,7 +123,7 @@ def main():
         for iteration, data in enumerate(Dataloader.batch_iter(dataset, batch_size, bmt.rank(), bmt.world_size())):
 
             st = time.time()
-            optimizer.zero_grad()
+            optim_manager.zero_grad()
 
             dec_input = data["ctx"].int()
             dec_length = data["len_ctx"].int()
@@ -136,7 +139,7 @@ def main():
             loss = outputs.loss
             lag_loss, sparsity = bmt.sum_loss(outputs.lag_loss).item(), outputs.sparsity
             global_loss = bmt.sum_loss(loss).item()
-            loss = optimizer.loss_scale(loss) + outputs.lag_loss
+            optim_manager.backward(loss + outputs.lag_loss)
 
             if do_distill:
                 distill_loss = bmt.sum_loss(outputs.d_loss).item()
@@ -146,8 +149,7 @@ def main():
             if iteration % 1000 == 0:
                 print_inspect(model, "*")
             
-            loss.backward()
-            bmt.optim_step(optimizer, lr_scheduler)
+            optim_manager.step()
             
 
             if iteration % args.log_interval == 0:
@@ -159,7 +161,7 @@ def main():
                         global_loss-distill_loss,
                         distill_loss,
                         lr_scheduler.current_lr,
-                        int(optimizer.scale),
+                        int(optim_manager.scale),
                         average_time / (1 - pow(average_time_shift, iteration + 1)),
                         lag_loss,
                         sparsity

@@ -178,7 +178,7 @@ def main():
             else:
                 distill_loss = 0
             
-            optimizer.step()
+            optim_manager.step()
             
 
             if iteration % args.log_interval == 0:
