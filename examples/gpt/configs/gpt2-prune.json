@@ -10,7 +10,7 @@
     "pruning": {
         "is_pruning": true,
         "pruning_mask_path": "prune_example.bin",
-        "pruned_module": ["input_embedding"],
+        "pruned_module": ["encoder.layers.0"],
         "mask_method": "m4n2_1d"
     },
 
