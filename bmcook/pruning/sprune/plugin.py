@@ -186,7 +186,7 @@ class SPrunePlugin:
                         if 'w_in' in k or 'w_out' in k:
                             dim_ff_num += 1
                         ffn_param += v.numel()
-                
+
                 # model ststistics
                 transformer_layer_param = self_att_param + cross_att_param + ffn_param
                 prunable_all_params += transformer_layer_param

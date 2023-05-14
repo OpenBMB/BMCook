@@ -64,6 +64,7 @@ def main():
     json.dump(vars(args), open(save_dir / 'train_args.json', 'w'), indent=2)
 
     model_config = config_map[args.model].from_pretrained(args.model)
+    model_config.scale = True
     model = model_map[args.model].from_pretrained(args.model, config=model_config)
     
     # teacher model has the same config as the student model
@@ -74,11 +75,13 @@ def main():
     # data
     batch_size = 4
     ctx_len = 512
-    tar_len = 512
+    tar_len = 256
 
     loss_func = torch.nn.CrossEntropyLoss(ignore_index=-100)
-    optimizer = bmt.optim.AdamOptimizer(model.parameters(), scale=2**20)
+    optimizer = bmt.optim.AdamOptimizer(model.parameters())
     lr_scheduler = bmt.lr_scheduler.Noam(optimizer, start_lr=args.start_lr, warmup_iter=2000, end_iter=100000)
+    optim_manager = bmt.optim.OptimManager(loss_scale=2**20)
+    optim_manager.add_optimizer(optimizer, lr_scheduler)
 
     config = ConfigParser(args.cook_config)
     CookTrainer.set_compression(config, model, optimizer, teacher)    
@@ -87,8 +90,8 @@ def main():
     average_time_shift = 0.9
 
     dataset = Dataset(
-        MMapIndexedDataset(os.path.join(args.data_path, 'webtext_document_context')),
-        MMapIndexedDataset(os.path.join(args.data_path, 'webtext_document_target')),
+        MMapIndexedDataset(args.data_path+'_context'),
+        MMapIndexedDataset(args.data_path+'_target'),
         ctx_len,
         tar_len
     )
@@ -97,6 +100,9 @@ def main():
     if config.get('MoEfication')['is_moefy']:
         os.makedirs(save_dir / 'hiddens', exist_ok=True)
         model.eval()
+
+        hiddens_dir = save_dir / 'hiddens'
+        os.makedirs(hiddens_dir, exist_ok=True)
 
         for iteration, data in enumerate(Dataloader.batch_iter(dataset, batch_size, bmt.rank(), bmt.world_size())):
 
@@ -121,7 +127,7 @@ def main():
             with torch.no_grad():
                 outputs = CookTrainer.forward(model, loss_func, targets, enc_input, enc_length, dec_input, dec_length)
             
-            torch.save(outputs[-1], 'results/hiddens/' + '{}_{}'.format(iteration, bmt.rank()))
+            torch.save(outputs.moe_records, hiddens_dir / '{}_{}'.format(iteration, bmt.rank()))
                
             bmt.print_rank("Iteration:", iteration)
         exit()
@@ -139,7 +145,7 @@ def main():
         for iteration, data in enumerate(Dataloader.batch_iter(dataset, batch_size, bmt.rank(), bmt.world_size())):
 
             st = time.time()
-            optimizer.zero_grad()
+            optim_manager.zero_grad()
 
             enc_input = data["ctx_context"].int()
             enc_length = data["len_ctx_context"].int()
@@ -159,19 +165,20 @@ def main():
             outputs = CookTrainer.forward(model, loss_func, targets, enc_input, enc_length, dec_input, dec_length)
 
             loss = outputs.loss
-            lag_loss, sparsity = bmt.sum_loss(outputs.lag_loss).item(), outputs.sparsity
+            if outputs.lag_loss != 0:
+                lag_loss, sparsity = bmt.sum_loss(outputs.lag_loss).item(), outputs.sparsity
+            else:
+                lag_loss, sparsity = 0, outputs.sparsity
             
             global_loss = bmt.sum_loss(loss).item()
-            loss = optimizer.loss_scale(loss) + outputs.lag_loss
+            optim_manager.backward(loss + outputs.lag_loss)
 
             if do_distill:
                 distill_loss = bmt.sum_loss(outputs.d_loss).item()
             else:
                 distill_loss = 0
             
-            loss.backward()
-
-            bmt.optim_step(optimizer, lr_scheduler)
+            optimizer.step()
             
 
             if iteration % args.log_interval == 0:
@@ -183,7 +190,7 @@ def main():
                         global_loss-distill_loss,
                         distill_loss,
                         lr_scheduler.current_lr,
-                        int(optimizer.scale),
+                        int(optim_manager.loss_scale),
                         average_time / (1 - pow(average_time_shift, iteration + 1)),
                         lag_loss,
                         sparsity,
