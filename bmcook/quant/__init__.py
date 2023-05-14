@@ -9,7 +9,7 @@ class BMQuant:
     '''
 
     @classmethod
-    def quantize(cls, model, config, target_linear = model_center.layer.Linear):
+    def quantize(cls, model, config, target_linear = None):
         '''
         Practitioners can turn on quantization by `is_quant` in the config, which will replace all linear layers with quantized linear layers. BMCook provides the simulation of 8-bit quantization.
 
@@ -27,6 +27,8 @@ class BMQuant:
                 grad_f = grad_f.contiguous()
             return ct.gemm.GEMMInt8._backward(ctx, grad_f)
         ct.gemm.GEMMInt8.backward = new_func
+
+        target_linear = model_center.layer.Linear if target_linear is None else target_linear
 
         for name, module in model.named_modules():
             if isinstance(module, target_linear):

@@ -1,4 +1,5 @@
 import types
+import torch
 import bmtrain as bmt
 import torch.nn.functional as F
 import model_center.layer as Layer
@@ -10,146 +11,89 @@ class BMDistill:
     '''
 
     @classmethod
-    def set_forward(cls, student, teacher, foward_fn, config, target_linear = Layer.Linear):
+    def set_forward(cls, student, teacher, forward_fn, config, target_linear = Layer.Linear):
         '''
         Modify the forward function of the student model to compute additional knowledge distillation loss.
 
-        `foward_fn` should have the following arguments: `foward_fn(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)`. These arguments are general for existing Transformers. For decoder-only model, `enc_input` and `enc_length` can be set to None. For encoder-only model, `dec_input` and `dec_length` can be set to None. Similarly, `student` and `teacher` models also have the following arguments: `model(enc_input, enc_length, dec_input, dec_length)`.
+        `forward_fn` should have the following arguments: `forward_fn(model, enc_input, enc_length, dec_input, dec_length, targets, loss_func)`. These arguments are general for existing Transformers. For decoder-only model, `enc_input` and `enc_length` can be set to None. For encoder-only model, `dec_input` and `dec_length` can be set to None. Similarly, `student` and `teacher` models also have the following arguments: `model(enc_input, enc_length, dec_input, dec_length)`.
 
         :param student: Student model.
         :param teacher: Teacher model.
-        :param foward_fn: Forward function of the student model.
+        :param forward_fn: Forward function of the student model.
         :param config: ConfigParser object.
-        :return: Modified forward function, whose return values are the original return values of `foward_fn` and additional knowledge distillation loss.
+        :return: Modified forward function, whose return values are the original return values of `forward_fn` and additional knowledge distillation loss.
         '''
 
         distill_config = config.get('distillation')
         if distill_config['ce_scale'] + distill_config['mse_hidn_scale'] + distill_config['mse_att_scale'] == 0:
             # if all scales are zero, return the original forward function
-            return foward_fn
+            return forward_fn
 
         if distill_config['mse_hidn_scale'] > 0:
             # if mse_hidn_scale is not zero, get the module mapping from the teacher model to the student model
             s_module_map, t_module_map = get_module_map(distill_config['mse_hidn_module'])
             update_forward(student, teacher, s_module_map, t_module_map)
 
-        if cls.version:
-            def forward(model, loss_func, targets, *model_args, **model_kwargs):
+        target_linear = Layer.Linear if target_linear is None else target_linear
 
-                with bmt.inspect.inspect_tensor() as inspector:
-                    outputs = foward_fn(
-                        model, loss_func, targets, *model_args, **model_kwargs)
+        def forward(model, loss_func, targets, *model_args, **model_kwargs):
+            with bmt.inspect.inspect_tensor() as inspector:
+                outputs = forward_fn(
+                    model, loss_func, targets, *model_args, **model_kwargs
+                )
+                with torch.no_grad():
                     outputs_t = teacher(*model_args, **model_kwargs)
 
-                records = {}
-                for record in inspector._summary:
-                    records[record['name']] = record['tensor']
+            records = {}
+            for record in inspector._summary:
+                records[record['name']] = record['tensor']
 
-                loss = outputs.loss
-                model_outputs = outputs.original_output
-                logits_s = model_outputs
+            loss = outputs.loss
+            model_outputs = outputs.original_output
+            logits_s = model_outputs.logits
 
+            # Compute loss and d_loss
+            d_loss = 0.0
+            if distill_config['ce_scale'] > 0:
+                temp = distill_config['ce_temp']
+                logits_t = outputs_t[0].detach()
+                prob_t = F.softmax(logits_t / temp, dim=-1)
+                log_prob_s = F.log_softmax(logits_s / temp, dim=-1)
+                d_loss += -(prob_t * log_prob_s).sum(dim=1).mean() * distill_config['ce_scale']
+        
+            # MSE loss 
+            if distill_config['mse_hidn_scale'] > 0:
+                for module_name in s_module_map:
+                    t_module_name = s_module_map[module_name]['t']['name']
+                    student_t = records[module_name+'_student']
+                    teacher_t = records[t_module_name+'_teacher'].detach()
 
-                # Compute loss and d_loss
-                d_loss = 0.0
-                if distill_config['ce_scale'] > 0:
-                    temp = distill_config['ce_temp']
-                    logits_t = outputs_t.detach()
-                    prob_t = F.softmax(logits_t / temp, dim=-1)
-                    log_prob_s = F.log_softmax(logits_s / temp, dim=-1)
-                    d_loss += -(prob_t * log_prob_s).sum(dim=1).mean() * distill_config['ce_scale']
-            
-                # MSE loss 
-                if distill_config['mse_hidn_scale'] > 0:
-                    for module_name in s_module_map:
-                        t_module_name = s_module_map[module_name]['t']['name']
-                        student_t = records[module_name+'_student']
-                        teacher_t = records[t_module_name+'_teacher'].detach()
-
-                        if distill_config['mse_hidn_proj']:
-                            if 'mapping' not in s_module_map[module_name]:
-                                t_dim = teacher_t.size(-1)
-                                s_dim = student_t.size(-1)
-                                # May be different on different devices
-                                
-                                s_module_map[module_name]['mapping'] = target_linear(t_dim, s_dim, init_std=0.02)
-                                bmt.init_parameters(s_module_map[module_name]['mapping'])
-                                s_module_map[module_name]['mapping'].to(teacher_t.device)
-                                bmt.synchronize()
+                    if distill_config['mse_hidn_proj']:
+                        if 'mapping' not in s_module_map[module_name]:
+                            t_dim = teacher_t.size(-1)
+                            s_dim = student_t.size(-1)
+                            # May be different on different devices
                             
-                            teacher_t = s_module_map[module_name]['mapping'](teacher_t)
-                            
-                        #normalize
-                        student_t_norm = student_t / (student_t.norm(dim=-1)).mean()
-                        teacher_t_norm = teacher_t / (teacher_t.norm(dim=-1)).mean()
+                            s_module_map[module_name]['mapping'] = target_linear(t_dim, s_dim, init_std=0.02)
+                            bmt.init_parameters(s_module_map[module_name]['mapping'])
+                            s_module_map[module_name]['mapping'].to(teacher_t.device)
+                            bmt.synchronize()
                         
-                        cur_loss = (student_t_norm - teacher_t_norm).pow(2).mean() * distill_config['mse_hidn_scale']
-                        d_loss += cur_loss
-                
-                loss = loss + d_loss
+                        teacher_t = s_module_map[module_name]['mapping'](teacher_t)
 
-                # update loss & append distillation loss
-                outputs.loss = loss
-                outputs.d_loss = d_loss
-                return outputs
-        else:
-            def forward(model, loss_func, targets, *model_args, **model_kwargs):
-
-                with bmt.inspect.inspect_tensor() as inspector:
-                    outputs = foward_fn(
-                        model, loss_func, targets, *model_args, **model_kwargs)    
-                    outputs_t = teacher(*model_args, **model_kwargs)
-
-                records = {}
-                for record in inspector._summary:
-                    records[record['name']] = record['tensor']
-
-                loss = outputs.loss
-                model_outputs = outputs.original_output
-                logits_s = model_outputs.logits
-
-                # Compute loss and d_loss
-                d_loss = 0.0
-                if distill_config['ce_scale'] > 0:
-                    temp = distill_config['ce_temp']
-                    logits_t = outputs_t.logits.detach()
-                    prob_t = F.softmax(logits_t / temp, dim=-1)
-                    log_prob_s = F.log_softmax(logits_s / temp, dim=-1)
-                    d_loss += -(prob_t * log_prob_s).sum(dim=1).mean() * distill_config['ce_scale']
+                    #normalize
+                    student_t_norm = student_t / (student_t.norm(dim=-1)).mean()
+                    teacher_t_norm = teacher_t / (teacher_t.norm(dim=-1)).mean()
+                    
+                    cur_loss = (student_t_norm - teacher_t_norm).pow(2).mean() * distill_config['mse_hidn_scale']
+                    d_loss += cur_loss
             
-                # MSE loss 
-                if distill_config['mse_hidn_scale'] > 0:
-                    for module_name in s_module_map:
-                        t_module_name = s_module_map[module_name]['t']['name']
-                        student_t = records[module_name+'_student']
-                        teacher_t = records[t_module_name+'_teacher'].detach()
+            loss = loss + d_loss
 
-                        if distill_config['mse_hidn_proj']:
-                            if 'mapping' not in s_module_map[module_name]:
-                                t_dim = teacher_t.size(-1)
-                                s_dim = student_t.size(-1)
-                                # May be different on different devices
-                                
-                                s_module_map[module_name]['mapping'] = target_linear(t_dim, s_dim, init_std=0.02)
-                                bmt.init_parameters(s_module_map[module_name]['mapping'])
-                                s_module_map[module_name]['mapping'].to(teacher_t.device)
-                                bmt.synchronize()
-                            
-                            teacher_t = s_module_map[module_name]['mapping'](teacher_t)
-
-                        #normalize
-                        student_t_norm = student_t / (student_t.norm(dim=-1)).mean()
-                        teacher_t_norm = teacher_t / (teacher_t.norm(dim=-1)).mean()
-                        
-                        cur_loss = (student_t_norm - teacher_t_norm).pow(2).mean() * distill_config['mse_hidn_scale']
-                        d_loss += cur_loss
-                
-                loss = loss + d_loss
-
-                # update loss & append distillation loss
-                outputs.loss = loss
-                outputs.d_loss = d_loss
-                return outputs
+            # update loss & append distillation loss
+            outputs.loss = loss
+            outputs.d_loss = d_loss
+            return outputs
         return forward
 
 def get_module_info(info):
@@ -197,38 +141,52 @@ def update_forward(student, teacher, s_module_map, t_module_map):
     for k, v in student.named_modules():
         if k in s_module_map:
             select_keys.add(k)
-            v.forward_old = v.forward
+            if isinstance(v, bmt.CheckpointBlock):
+                v.forward_old = v._module.forward
+            else:
+                v.forward_old = v.forward
             v.inspect_name = k+'_student'
-            
+
             if s_module_map[k]['s']['type'] == 'pre':
-                def _forward(module_self, x):
+                def _forward(module_self, x, *args, **kwargs):
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
-                    return module_self.forward_old(x)
-            
+                    return module_self.forward_old(x, *args, **kwargs)
+
             elif s_module_map[k]['s']['type'] == 'post':
-                def _forward(module_self, x):
-                    x = module_self.forward_old(x)
+                def _forward(module_self, x, *args, **kwargs):
+                    x = module_self.forward_old(x, *args, **kwargs)
+                    assert isinstance(x, torch.Tensor)
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
                     return x
-            
-            v.forward = types.MethodType(_forward, v)
+
+            if isinstance(v, bmt.CheckpointBlock):
+                v._module.forward = types.MethodType(_forward, v)
+            else:
+                v.forward = types.MethodType(_forward, v)
 
     for k, v in teacher.named_modules():
         if k in t_module_map:
             select_keys.add(k)
-            v.forward_old = v.forward
+            if isinstance(v, bmt.CheckpointBlock):
+                v.forward_old = v._module.forward
+            else:
+                v.forward_old = v.forward
             v.inspect_name = k+'_teacher'
 
             if t_module_map[k]['t']['type'] == 'pre':
-                def _forward(module_self, x):
+                def _forward(module_self, x, *args, **kwargs):
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
-                    return module_self.forward_old(x)
+                    return module_self.forward_old(x, *args, **kwargs)
 
             elif t_module_map[k]['t']['type'] == 'post':
-                def _forward(module_self, x):
-                    x = module_self.forward_old(x)
+                def _forward(module_self, x, *args, **kwargs):
+                    x = module_self.forward_old(x, *args, **kwargs)
+                    assert isinstance(x, torch.Tensor)
                     bmt.inspect.record_tensor(x, module_self.inspect_name)
                     return x
-            
-            v.forward = types.MethodType(_forward, v)
-    bmt.print_rank('Selected modules for hidden state MSE: {}'.format(select_keys))                        
+
+            if isinstance(v, bmt.CheckpointBlock):
+                v._module.forward = types.MethodType(_forward, v)
+            else:
+                v.forward = types.MethodType(_forward, v)
+    bmt.print_rank('Selected modules for hidden state MSE: {}'.format(select_keys))
