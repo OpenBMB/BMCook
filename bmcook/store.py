@@ -116,5 +116,5 @@ def _save_quantized(model, file_name):
 def save(model, file_name: str, mode: str):
     if mode == 'quant':
         _save_quantized(model, file_name)
-    elif mode == 'pruning':
+    elif mode == 'prune':
         _save_spruned(model, file_name)

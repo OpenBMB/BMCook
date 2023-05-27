@@ -1,7 +1,7 @@
 import torch
 import bmtrain as bmt
 from bmcook.utils.config import ConfigParser
-from bmcook import CPMAntTrainer
+from bmcook import CookTrainer
 
 import sys, os
 sys.path.insert(0, os.getcwd())
@@ -46,7 +46,7 @@ def main():
                                             num_iter = 0)
     loss_func = bmt.loss.FusedCrossEntropy(ignore_index=-100)
 
-    CPMAntTrainer.set_compression(config, model, optimizer, teacher)
+    CookTrainer.set_compression(config, model, optimizer, teacher)
 
     for iteration, data in enumerate(dataloader):
 

@@ -25,6 +25,7 @@
 
 ## 最新动态
 
+- 2023/5/27 支持Decoder-only模型的结构化剪枝。其中包括对[CPM-Live](https://github.com/OpenBMB/CPM-Live/tree/master)系列模型的压缩。
 - 2022/5/17 支持[model-center](https://github.com/OpenBMB/ModelCenter)中的预训练模型压缩。
 - 2022/3/20 (BMCook 0.1.0) 第一版BMCook发布了！
 

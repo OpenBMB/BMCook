@@ -27,6 +27,7 @@
 
 ## What's New
 
+- 2023/5/27 Support structured pruning of Decoder-only models, and the compression of [CPM-Live](https://github.com/OpenBMB/CPM-Live/tree/master) models。
 - 2022/5/17 Support PLMs in [model-center](https://github.com/OpenBMB/ModelCenter).
 - 2022/3/29 (**BMCook 0.1.0**) Now we publicly release the first version of BMCook.
 
