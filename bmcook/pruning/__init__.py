@@ -1,9 +1,8 @@
-from collections import defaultdict
+import os
 import types
 import torch
 import bmtrain as bmt
-import os
-import json
+from collections import defaultdict
 from bmtrain.block_layer import storage_type_cuda, round_up
 from .prune_func import m4n2_1d, m4n2_2d_greedy
 from .sprune import SPruneEngine, SPrunePlugin, SPruneStrategy
@@ -101,11 +100,11 @@ class BMPrune:
             func = m4n2_2d_greedy
         elif prune_config['mask_method'] == 'sprune':
             sprune_config = prune_config['sprune']
-            mask_path = sprune_config['mask_path']
             strategy = SPruneStrategy(config=sprune_config)
-            plugin = SPrunePlugin(strategy.training_mask, model, saved_path=mask_path)
-            cls.sprune_engine = SPruneEngine(strategy, plugin)
+            plugin = SPrunePlugin(sprune_config["training_mask"], model)
+            cls.sprune_engine = SPruneEngine(strategy, plugin, saved_path=sprune_config["mask_path"])
             cls._sprune = True
+            cls.lag_loss, cls.sparsity = None, None
             return 
         else:
             raise ValueError("Unknown mask method: {}".format(prune_config['mask_method']))
@@ -166,27 +165,6 @@ class BMPrune:
         cls._masks = _masks
 
     @classmethod
-    def set_forward_sprune(cls, forward_fn):
-        r"""
-        Modify the CookTrainer.forward
-
-        :param forward_fn: func CookTrainer.forward to modify.
-        :return: new forward modified
-        """
-        if cls._sprune is True:
-            def forward(model, loss_func, targets, *model_args, **model_kwargs):
-                outputs = forward_fn(model, loss_func, targets, *model_args, **model_kwargs)
-                loss = outputs.loss
-
-                lag_loss, sparsity = cls.sprune_engine.update()
-                
-                outputs.loss, outputs.lag_loss, outputs.sparsity = loss, lag_loss, sparsity
-                return outputs
-        else:
-            forward = forward_fn
-        return forward
-
-    @classmethod
     def set_optim_for_pruning(cls, optimizer):
         '''
         Modify the step function of the optimizer to avoid the update of the pruned weights, i.e., setting corresponding gradients and parameters to zeros.
@@ -232,9 +210,12 @@ class BMPrune:
             cls._optimizer.zero_grad_old = optimizer.zero_grad
 
             def _step(opt_self, *args, **kwargs):
+                lag_loss, sparsity = cls.sprune_engine.update()
+                lag_loss.backward()
                 rval = opt_self.step_old(*args, **kwargs)
                 cls.sprune_engine.sp_optimizer.step()
                 cls.sprune_engine.lagrangian_optimizer.step()
+                bmt.print_rank("sparsity: {:.4f} | lag_loss: {:.4f}".format(sparsity, lag_loss))
                 return rval
             cls._optimizer.step = types.MethodType(_step, cls._optimizer)
 

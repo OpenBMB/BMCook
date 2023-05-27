@@ -6,13 +6,7 @@ from typing import Optional
 
 gamma, zeta, epsilon = -.1, 1.1, 1e-6
 beta = 2./3.
-
-def cdf_concrete_dist(eps: Tensor, loga: Tensor):
-    r"""Implements the CDF of the 'stretched' concrete distribution"""
-    xn = (eps - gamma) / (zeta - gamma)
-    s = torch.sigmoid((torch.log(xn / (1 - xn)) * beta - loga))
-    z = s.clamp(min=0., max=1.)
-    return z
+zero_point = torch.tensor((0 - gamma) / (zeta - gamma))
 
 def l0_norm_term(loga: Tensor):
     r"""calculate the l0 norm term. For details, see paper
@@ -22,81 +16,44 @@ def l0_norm_term(loga: Tensor):
     return loss
 
 def from_sparsity(s: float):
-    s = 1 - s
-    sig = (s - gamma) / (zeta - gamma)
-    loga = -math.log((1 / sig) - 1)
+    sig_input = -math.log((1 / s) - 1)
+    loga = - sig_input + torch.log(zero_point / (1 - zero_point)) * beta
     return loga
 
 def determinate_mask(loga: Tensor):
-    sig = torch.sigmoid(loga)
-    s = sig * (zeta - gamma) + gamma
+    r"""Drop the stochastic sampling in func:sample, used for evaluation when training sprune mask"""
+    sig = torch.sigmoid(torch.log(zero_point / (1 - zero_point)) * beta - loga)
+    s = 1 - sig
     out = s.clamp(min=epsilon, max=1-epsilon)
     return out
 
 def sample(loga: Tensor):
     r"""Implements the gard concrete distribution. For details, see paper 
     'Learning Sparse Neural Networks through L_0 Regularization' <https://openreview.net/forum?id=H1Y8hhg0b>."""
-    eps = torch.FloatTensor(*loga.shape).uniform_(epsilon, 1-epsilon).to(loga.device)
+    eps = loga.new_empty(loga.size()).uniform_(epsilon, 1-epsilon)
     s = torch.sigmoid((torch.log(eps / (1 - eps)) + loga) / beta)
-    s = s * (zeta - gamma) + gamma
-    z = s.clamp(min=epsilon, max=1-epsilon)
-    z_ = z.to(device=loga.device, dtype=torch.half)  # remove from the computation graph of sp_module
-    return z_
+    z = s.clamp(min=epsilon, max=1-epsilon) # remove from the computation graph of sp_module
+    return z
 
-def binarize(loga: Tensor, hard_binarize: bool = False, target_s: Optional[float] = None):
+def binarize(loga: torch.FloatTensor, hard_binarize: bool = False, target_s: Optional[float] = None):
+    r"""According to the score mask, to get 0-1 mask for actual pruning."""
+    dtype, device = torch.half, loga.device
     mask = determinate_mask(loga)
-    if loga.size(-1) == 1:
-        if not hard_binarize:
-            expected_num_nonzeros = mask.sum()
-            total_num_nonzeros = loga.size(-1)
-            expected_num_zeros = total_num_nonzeros - expected_num_nonzeros
-        else:
-            expected_num_zeros = torch.tensor(mask.numel() * target_s)
-        loga_ = loga.squeeze(-1)
-        num_zeros = round(expected_num_zeros.item())
-        soft_mask = torch.ones_like(loga_, dtype=torch.half)
-        if num_zeros > 0:
-            if soft_mask.ndim == 0:
-                soft_mask = torch.tensor(0).to(loga_.device)
-            else:
-                _, indices = torch.topk(loga_, k=num_zeros, largest=False)  # return values, indices
-                soft_mask[indices] = 0.  # set zero
-        res = soft_mask.to(device='cuda')  # remove from the computation graph of sp_module
+
+    if not hard_binarize:
+        expected_num_nonzeros = mask.sum()
+        total_num_nonzeros = loga.size(-1)
+        num_zeros = round((total_num_nonzeros - expected_num_nonzeros).item())
     else:
-        res = []
-        for index in range(loga.size(0)):
-            submask = mask[index]
-            if not hard_binarize:
-                expected_num_nonzeros = torch.sum(submask, -1)
-                total_num_nonzeros = loga.size(-1)
-                expected_num_zeros = total_num_nonzeros - expected_num_nonzeros
-            else:
-                expected_num_zeros = torch.tensor(submask.numel() * target_s)
-            num_zeros = round(expected_num_zeros.item())
-            cur_layer = loga[index]
-            soft_mask = torch.ones_like(cur_layer, dtype=torch.half)
-            if num_zeros > 0:
-                if soft_mask.ndim == 0:
-                    soft_mask = torch.tensor(0).to(cur_layer.device)
-                else:
-                    _, indices = torch.topk(mask[index], k=num_zeros, largest=False)  # 返回values, indices
-                    soft_mask[indices] = 0.  # 置零
-            res.append(soft_mask)
-        res = torch.stack(res)
-    return res
+        num_zeros = round(torch.tensor(mask.numel() * target_s).item())
 
-
-def binarize_mask_1d(loga: Tensor):
-    expected_num_nonzeros = torch.sum(1 - cdf_concrete_dist(torch.tensor(0.), loga), -1)
-    expected_num_zeros = loga.size(1) - expected_num_nonzeros
-    
-    num_zeros = round(expected_num_zeros)
-    soft_mask = torch.ones_like(loga)
+    soft_mask = torch.ones_like(loga, dtype=dtype, device=device)
     if num_zeros > 0:
         if soft_mask.ndim == 0:
-            soft_mask = torch.tensor(0).to(loga.device)
+            soft_mask = torch.tensor(0, device=device)
         else:
-            _, indices = torch.topk(loga, k=num_zeros, largest=False)  # return values, indices
+            _, indices = torch.topk(mask, k=num_zeros, largest=False)  # return values, indices
             soft_mask[indices] = 0.  # set zero
-    soft_mask = soft_mask.to(device='cuda', dtype=torch.half)  # remove from the computation graph of sp_module
-    return soft_mask
+    res = soft_mask
+    
+    return res

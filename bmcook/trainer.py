@@ -1,13 +1,12 @@
 import inspect
 import functools
 import bmtrain as bmt
-import model_center
 from typing import Optional, List
 from collections import OrderedDict
 from torch import Tensor
 from torch.nn import Module
 from torch.optim import Optimizer
-from packaging.version import parse as parse_version
+from model_center.model import ModelOutput
 
 from .distilling import BMDistill
 from .pruning import BMPrune
@@ -19,8 +18,6 @@ class CookOutput:
     def __init__(self, 
         loss, 
         original_output, 
-        lag_loss = 0., 
-        sparsity = 0., 
         d_loss = 0., 
         sprune_plugin = None, 
         sprune_engine = None
@@ -28,8 +25,6 @@ class CookOutput:
 
         self.loss = loss
         self.original_output = original_output
-        self.lag_loss = lag_loss
-        self.sparsity = sparsity
         self.d_loss = d_loss
         self.sprune_plugin = sprune_plugin
         self.sprune_engine = sprune_engine
@@ -71,7 +66,14 @@ class CookTrainer:
         raise NotImplementedError("The staticmethod forward() should be defined in :method:`set_forward`.")
 
     @classmethod
-    def set_compression(cls, cook_config: ConfigParser, model: Optional[Module] = None, optimizer: Optional[Optimizer] = None, teacher: Optional[Module] = None, remove_ckptblock: bool = True):
+    def set_compression(
+        cls,
+        cook_config: ConfigParser,
+        model: Optional[Module] = None,
+        optimizer: Optional[Optimizer] = None,
+        teacher: Optional[Module] = None,
+        quant_layer_cls = None
+    ):
         r"""Define the :method:`forward`, and set up :class:`BMPrune`, :class:`BMDistill`, :class:`BMQuant`
         and :class:`BMMoE`.
 
@@ -104,7 +106,7 @@ class CookTrainer:
             outputs = model(
                 *model_args, **model_kwargs
             )
-            if isinstance(outputs, model_center.model.ModelOutput):
+            if isinstance(outputs, ModelOutput):
                 logits = outputs.logits
             elif isinstance(outputs, tuple):
                 logits = outputs[0]
@@ -123,17 +125,15 @@ class CookTrainer:
 
         # for pruning
         BMPrune.compute_mask(model, cook_config)
-        cls.forward = BMPrune.set_forward_sprune(cls.forward)
         BMPrune.set_optim_for_pruning(optimizer)
 
         # for distillation
         cls.forward = BMDistill.set_forward(model, teacher, cls.forward, cook_config)
 
         # for quantization
-        BMQuant.quantize(model, cook_config)
+        BMQuant.quantize(model, cook_config, quant_layer_cls)
 
         # for moefication
         cls.forward = BMMoE.get_hidden(model, cook_config, cls.forward)
 
         bmt.synchronize()
-
