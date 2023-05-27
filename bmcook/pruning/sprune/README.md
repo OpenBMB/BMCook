@@ -1,5 +1,10 @@
 # BMCook SPrune
 
+## What's New
+- 2023/5/27 
+    1. support the compression of CPM-Bee.
+    2. provide brief configuration for **training with sprun mask** and **finetuning with sprune mask**.
+
 ## Overview
 Structure pruning toolkit of BMCook.
 
