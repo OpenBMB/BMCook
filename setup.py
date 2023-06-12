@@ -10,8 +10,9 @@ def main():
         packages=find_packages(exclude='cpm_live'),
         url="https://github.com/OpenBMB/BMCook",
         install_requires=[
-            "bmtrain",
-            "model_center"
+            "torch<2.0.0",
+            "bmtrain>=0.2.0",
+            "model_center>=0.1.5"
         ],
         license="Apache 2.0"
     )
