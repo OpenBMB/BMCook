@@ -3,9 +3,9 @@ from setuptools import setup, find_packages
 def main():
     setup(
         name='bmcook',
-        version='0.1.1.1',
+        version='0.1.2',
         description="Model Compression for Big Models",
-        author="Baitao Gong",
+        author="OpenBMB",
         author_email="gongbaitao11@gmail.com",
         packages=find_packages(exclude='cpm_live'),
         url="https://github.com/OpenBMB/BMCook",
