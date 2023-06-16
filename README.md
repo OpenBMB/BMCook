@@ -245,7 +245,7 @@ Based on T5-3B, we evaluate different combinations of compression techniques. Th
 |                        |     Average Performance    |     Relative Performance    |     Speedup    |
 |------------------------|----------------|-----------------------------|----------------|
 |     T5-3B              |           0.9258 |                        -    |          1x    |
-|     T5-Base       |           0.8796 |                       95.0% |         7x   |
+|     T5-Base       |           0.8796 |                       95.0% |         14x   |
 |     T5-3B (P+D)        |           0.9150 |                       98.8% |          2x    |
 |     T5-3B (P+D+Q)      |           0.9126 |                       98.6% |          8x    |
 |     T5-3B (P+D+Q+M)    |           0.9017 |                       97.4% |          12x   |
