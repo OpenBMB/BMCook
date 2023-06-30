@@ -1,1 +1,1 @@
-from .ant import CPMAnt_Dataset, DistributedMMapIndexedDataset, BatchPacker
+from .distributed_dataset import DistributedDataset

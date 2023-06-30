@@ -139,13 +139,9 @@ def main():
             outputs = CookTrainer.forward(model, loss_func, targets, dec_input, dec_length)
 
             loss = outputs.loss
-            if outputs.lag_loss != 0:
-                lag_loss, sparsity = bmt.sum_loss(outputs.lag_loss).item(), outputs.sparsity
-            else:
-                lag_loss, sparsity = 0, outputs.sparsity
 
             global_loss = bmt.sum_loss(loss).item()
-            optim_manager.backward(loss + outputs.lag_loss)
+            optim_manager.backward(loss)
 
             if do_distill:
                 distill_loss = bmt.sum_loss(outputs.d_loss).item()
@@ -156,21 +152,18 @@ def main():
                 print_inspect(model, "*")
             
             optim_manager.step()
-            
 
             if iteration % args.log_interval == 0:
                 iteration_time = time.time() - st
                 average_time = average_time * average_time_shift + (1 - average_time_shift) * iteration_time
                 bmt.print_rank(
-                    "| Iter: {:6d} | loss: {:.4f} | kd_loss: {:.4f} | lr: {:.4e}, scale: {:10.4f} | time: {:.4f}  | lag_loss: {:.4f} | sparsity: {:.4f}".format(
+                    "| Iter: {:6d} | loss: {:.4f} | kd_loss: {:.4f} | lr: {:.4e}, scale: {:10.4f} | time: {:.4f}".format(
                         iteration,
                         global_loss-distill_loss,
                         distill_loss,
                         lr_scheduler.current_lr,
                         int(optim_manager.loss_scale),
-                        average_time / (1 - pow(average_time_shift, iteration + 1)),
-                        lag_loss,
-                        sparsity
+                        average_time / (1 - pow(average_time_shift, iteration + 1))
                     )
                 )
             
